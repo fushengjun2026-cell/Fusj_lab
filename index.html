@@ -1,82 +1,134 @@
 <!DOCTYPE html>
-<html>
-
+<html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <title>付胜骏的个人主页</title>
-
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="付胜骏的个人作品集主页，聚焦人工智能、开发与前沿技术探索。">
+    <title>付胜骏 | AI Explorer</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Orbitron:wght@600;700;800&family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
-
 </head>
-
 <body>
+    <canvas id="starfield" aria-hidden="true"></canvas>
+    <div class="cosmic-vignette" aria-hidden="true"></div>
+    <div id="meteor-layer" aria-hidden="true"></div>
 
-   <div class="container">
+    <header class="site-header">
+        <a class="brand" href="#hero" aria-label="返回首页">FSJ</a>
+        <nav class="nav-links" aria-label="主要导航">
+            <a href="#about">About</a>
+            <a href="#skills">Skills</a>
+            <a href="#projects">Projects</a>
+            <a href="#contact">Contact</a>
+        </nav>
+    </header>
 
-    <h1>付胜骏</h1>
+    <main>
+        <section class="hero section" id="hero">
+            <div class="hero-content reveal">
+                <p class="eyebrow">AI Explorer / Developer / Technology Enthusiast</p>
+                <h1>付胜骏</h1>
+                <p class="identity">北京航空航天大学本科生</p>
+                <p class="hero-copy">探索人工智能与前沿技术，创造有价值的数字产品。</p>
+                <div class="hero-actions" aria-label="主要操作">
+                    <a class="glass-button" href="#projects">View My Projects</a>
+                    <a class="glass-button glass-button-secondary" href="https://github.com/" target="_blank" rel="noreferrer">Visit GitHub</a>
+                </div>
+            </div>
+            <div class="scroll-cue" aria-hidden="true"><span></span></div>
+        </section>
 
-    <h2>AI Explorer | 北京航空航天大学学生</h2>
+        <section class="section content-section reveal" id="about">
+            <div class="section-label">About Me</div>
+            <div class="section-grid">
+                <h2>在工程与想象力之间，持续探索智能技术的边界。</h2>
+                <div class="section-copy">
+                    <p>我是一名来自北京航空航天大学的本科生，关注人工智能、机器学习与现代 Web 产品开发。希望把研究视角、工程能力和产品审美结合起来，构建真正有用、可靠、优雅的数字作品。</p>
+                    <p>目前持续学习 AI 应用开发、算法实践与全栈工程，喜欢把复杂问题拆解成清晰、可验证、可迭代的解决方案。</p>
+                </div>
+            </div>
+        </section>
 
-    <p>
-        探索人工智能与互联网技术，
-        希望创造有价值的项目。
-    </p>
+        <section class="section content-section reveal" id="skills">
+            <div class="section-label">Skills</div>
+            <h2 class="compact-heading">技术栈与探索方向</h2>
+            <div class="skills-grid">
+                <article class="skill-card">
+                    <span>01</span>
+                    <h3>Python</h3>
+                    <p>数据处理、自动化脚本与 AI 原型开发。</p>
+                </article>
+                <article class="skill-card">
+                    <span>02</span>
+                    <h3>AI</h3>
+                    <p>关注大模型应用、智能体与人机协作体验。</p>
+                </article>
+                <article class="skill-card">
+                    <span>03</span>
+                    <h3>Machine Learning</h3>
+                    <p>理解模型训练、评估和实验迭代流程。</p>
+                </article>
+                <article class="skill-card">
+                    <span>04</span>
+                    <h3>Web Development</h3>
+                    <p>使用轻量前端技术构建清晰、响应式界面。</p>
+                </article>
+                <article class="skill-card">
+                    <span>05</span>
+                    <h3>GitHub</h3>
+                    <p>版本管理、项目沉淀与开放协作。</p>
+                </article>
+            </div>
+        </section>
 
+        <section class="section content-section reveal" id="projects">
+            <div class="section-label">Projects</div>
+            <div class="section-grid">
+                <h2>把想法做成可以运行、可以体验、可以持续进化的作品。</h2>
+                <p class="section-copy">以下是项目展示区域，可在后续替换为真实项目链接、论文实验、开源仓库或产品 Demo。</p>
+            </div>
+            <div class="projects-grid">
+                <article class="project-card">
+                    <div class="project-topline"><span>AI LAB</span><span>2026</span></div>
+                    <h3>AI 项目探索</h3>
+                    <p>围绕人工智能能力构建实验性应用，探索智能工具如何解决真实场景中的复杂问题。</p>
+                    <div class="tech-stack"><span>Python</span><span>AI</span><span>Prototype</span></div>
+                    <a href="#" aria-label="查看 AI 项目探索">View Project</a>
+                </article>
 
-    <hr>
+                <article class="project-card">
+                    <div class="project-topline"><span>WEB</span><span>DESIGN</span></div>
+                    <h3>个人主页系统</h3>
+                    <p>使用原生 HTML、CSS 与 JavaScript 打造高性能、强视觉表达的个人作品集入口。</p>
+                    <div class="tech-stack"><span>HTML</span><span>CSS</span><span>JavaScript</span></div>
+                    <a href="#" aria-label="查看个人主页系统">View Project</a>
+                </article>
 
+                <article class="project-card">
+                    <div class="project-topline"><span>ML</span><span>RESEARCH</span></div>
+                    <h3>机器学习实验集</h3>
+                    <p>沉淀机器学习模型训练、数据分析与实验记录，关注模型效果与工程可复现性。</p>
+                    <div class="tech-stack"><span>Machine Learning</span><span>Data</span><span>Research</span></div>
+                    <a href="#" aria-label="查看机器学习实验集">View Project</a>
+                </article>
+            </div>
+        </section>
 
-    <h2>关于我</h2>
+        <section class="section contact-section reveal" id="contact">
+            <div>
+                <div class="section-label">Contact</div>
+                <h2>让下一次探索，从一次连接开始。</h2>
+                <p>欢迎通过 GitHub 或 Email 交流 AI、技术产品、开源项目与有趣的工程想法。</p>
+            </div>
+            <div class="contact-actions">
+                <a class="glass-button" href="https://github.com/" target="_blank" rel="noreferrer">GitHub</a>
+                <a class="glass-button glass-button-secondary" href="mailto:hello@example.com">Email</a>
+            </div>
+        </section>
+    </main>
 
-    <p>
-        🎓 北京航空航天大学本科生<br>
-        🤖 正在学习人工智能<br>
-        💻 热爱技术创新
-    </p>
-
-
-    <h2>我的技能</h2>
-
-    <ul>
-        <li>Python</li>
-        <li>AI</li>
-        <li>Web开发</li>
-        <li>GitHub</li>
-    </ul>
-
-
-    <h2>我的项目</h2>
-
-    <div class="project">
-
-        <h3>AI 项目探索</h3>
-
-        <p>
-            使用人工智能技术解决实际问题。
-        </p>
-
-    </div>
-
-
-    <div class="project">
-
-        <h3>个人网站</h3>
-
-        <p>
-            我的第一个 Web 开发项目。
-        </p>
-
-    </div>
-
-
-    <h2>联系我</h2>
-
-    <p>
-        GitHub | Email
-    </p>
-
-
-</div>
+    <script src="script.js"></script>
 </body>
-
 </html>
