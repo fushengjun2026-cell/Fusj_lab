@@ -29,6 +29,7 @@ function handleDirection(direction){move(direction)}
 document.querySelectorAll("[data-move]").forEach(button=>button.addEventListener("click",()=>handleDirection(button.dataset.move)));
 undoButton?.addEventListener("click",undo);resetGameButton?.addEventListener("click",newGame);
 addEventListener("keydown",event=>{const keys={ArrowUp:"up",ArrowDown:"down",ArrowLeft:"left",ArrowRight:"right",w:"up",s:"down",a:"left",d:"right"};if(event.key==="Escape"){undo();return}if(keys[event.key]){event.preventDefault();handleDirection(keys[event.key])}});
-gameBoard?.addEventListener("touchstart",event=>{const touch=event.changedTouches[0];touchStart=[touch.clientX,touch.clientY]},{passive:true});
-gameBoard?.addEventListener("touchend",event=>{if(!touchStart)return;const touch=event.changedTouches[0],dx=touch.clientX-touchStart[0],dy=touch.clientY-touchStart[1];touchStart=null;if(Math.max(Math.abs(dx),Math.abs(dy))<28)return;handleDirection(Math.abs(dx)>Math.abs(dy)?dx>0?"right":"left":dy>0?"down":"up")},{passive:true});
+gameBoard?.addEventListener("touchstart",event=>{event.preventDefault();const touch=event.changedTouches[0];touchStart=[touch.clientX,touch.clientY]},{passive:false});
+gameBoard?.addEventListener("touchmove",event=>{event.preventDefault()},{passive:false});
+gameBoard?.addEventListener("touchend",event=>{event.preventDefault();if(!touchStart)return;const touch=event.changedTouches[0],dx=touch.clientX-touchStart[0],dy=touch.clientY-touchStart[1];touchStart=null;if(Math.max(Math.abs(dx),Math.abs(dy))<28)return;handleDirection(Math.abs(dx)>Math.abs(dy)?dx>0?"right":"left":dy>0?"down":"up")},{passive:false});
 newGame();
