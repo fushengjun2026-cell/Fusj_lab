@@ -63,9 +63,8 @@ const p=posFor(row,col);
 el.style.width=p.s+"px";
 el.style.height=p.s+"px";
 el.style.transform=`translate(${p.x}px,${p.y}px)`;
-if(spawn){el.style.transition="none";el.classList.add("tile-spawn")}
+if(spawn)el.classList.add("tile-spawn");
 tileLayer.append(el);
-if(spawn){requestAnimationFrame(()=>{requestAnimationFrame(()=>{el.style.transition=""})})}
 tileEls.set(id,el);
 return el;
 }
@@ -73,6 +72,7 @@ function positionTileEl(el,row,col){
 const p=posFor(row,col);
 el.style.width=p.s+"px";
 el.style.height=p.s+"px";
+el.style.transition="transform 130ms ease-in-out";
 el.style.transform=`translate(${p.x}px,${p.y}px)`;
 }
 function removeTileEl(id){
