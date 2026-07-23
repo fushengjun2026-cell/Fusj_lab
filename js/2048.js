@@ -62,9 +62,11 @@ el.dataset.id=id;
 const p=posFor(row,col);
 el.style.width=p.s+"px";
 el.style.height=p.s+"px";
+if(spawn)el.style.transition="none";
 el.style.transform=`translate(${p.x}px,${p.y}px)`;
 if(spawn)el.classList.add("tile-spawn");
 tileLayer.append(el);
+if(spawn){el.offsetHeight;el.style.transition=""}
 tileEls.set(id,el);
 return el;
 }
@@ -184,8 +186,7 @@ removeTileEl(m.id1);
 removeTileEl(m.id2);
 const id=++tileIdCounter;
 tileData.set(id,{value:m.newValue,row:m.toRow,col:m.toCol});
-const el=createTileEl(id,m.newValue,m.toRow,m.toCol,false);
-el.classList.add("tile-pop");
+createTileEl(id,m.newValue,m.toRow,m.toCol,false);
 });
 
 /* Add new random tile */
