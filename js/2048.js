@@ -62,11 +62,10 @@ el.dataset.id=id;
 const p=posFor(row,col);
 el.style.width=p.s+"px";
 el.style.height=p.s+"px";
-if(spawn)el.style.transition="none";
 el.style.transform=`translate(${p.x}px,${p.y}px)`;
-if(spawn)el.classList.add("tile-spawn");
+if(spawn){el.style.transition="none";el.classList.add("tile-spawn")}
 tileLayer.append(el);
-if(spawn){el.offsetHeight;el.style.transition=""}
+if(spawn){requestAnimationFrame(()=>{requestAnimationFrame(()=>{el.style.transition=""})})}
 tileEls.set(id,el);
 return el;
 }
