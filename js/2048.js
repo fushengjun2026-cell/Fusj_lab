@@ -62,6 +62,7 @@ el.dataset.id=id;
 const p=posFor(row,col);
 el.style.width=p.s+"px";
 el.style.height=p.s+"px";
+el.style.transition="none";
 el.style.transform=`translate(${p.x}px,${p.y}px)`;
 if(spawn)el.classList.add("tile-spawn");
 tileLayer.append(el);
