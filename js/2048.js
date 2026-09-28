@@ -154,7 +154,7 @@ grid[row][col]=result[offset].value;
 }
 
 const changed=grid.some((row,r)=>row.some((v,c)=>v!==before[r][c]));
-if(!changed){setMessage(gameOver?"The board is full. Undo a move to continue.":"No signal moved in that direction.");return}
+if(!changed){setMessage(gameOver?"棋盘已满，撤销一步后继续。":"这个方向无法移动。");return}
 
 history.push({grid:before,score:beforeScore});
 score+=gained;
@@ -202,7 +202,7 @@ createTileEl(id,grid[row][col],row,col,true);
 
 updateHUD();
 if(!hasMoves())gameOver=true;
-setMessage(gameOver?"The board is full. Undo a move to continue.":gained?`Merged signal +${gained}.`:"Signal shifted.");
+setMessage(gameOver?"棋盘已满，撤销一步后继续。":gained?`合并得分 +${gained}。`:"已移动。");
 saveGame();
 animating=false;
 },SLIDE_MS+20);
@@ -214,11 +214,11 @@ function setMessage(message){if(gameMessage)gameMessage.textContent=message}
 function updateHUD(){if(scoreValue)scoreValue.textContent=score;if(bestValue)bestValue.textContent=best;if(undoCount)undoCount.textContent=history.length;if(undoButton)undoButton.disabled=!history.length}
 
 function draw(){if(!gameBoard)return;syncTilesFromGrid();updateHUD();saveGame()}
-function undo(){if(!history.length){setMessage("Nothing to undo yet.");return}const previous=history.pop();grid=copyGrid(previous.grid);score=previous.score;gameOver=false;draw();setMessage("Move restored. Choose another orbit.")}
+function undo(){if(!history.length){setMessage("暂时没有可撤销的步骤。");return}const previous=history.pop();grid=copyGrid(previous.grid);score=previous.score;gameOver=false;draw();setMessage("已撤销，试试别的走法。")}
 function newGame(){clearSave();grid=emptyGrid();score=0;history=[];gameOver=false;
 const empty=[];for(let r=0;r<size;r++)for(let c=0;c<size;c++)empty.push([r,c]);
 for(let i=0;i<2;i++){const[r,c]=empty.splice(Math.floor(Math.random()*empty.length),1)[0];grid[r][c]=Math.random()<.9?2:4}
-draw();setMessage("Use the arrow keys, buttons, or swipe to begin.")}
+draw();setMessage("使用方向键、按钮或滑动手势开始。")}
 
 function handleDirection(direction){animatedMove(direction)}
 
@@ -237,4 +237,4 @@ addEventListener("resize",()=>{clearTimeout(resizeTimer);resizeTimer=setTimeout(
 
 /* ---- Init ---- */
 initBoard();
-if(loadGame()){syncTilesFromGrid();updateHUD();setMessage(gameOver?"The board is full. Undo a move to continue.":"Welcome back — your orbit is restored.")}else{newGame()}
+if(loadGame()){syncTilesFromGrid();updateHUD();setMessage(gameOver?"棋盘已满，撤销一步后继续。":"已恢复上次的进度。")}else{newGame()}
