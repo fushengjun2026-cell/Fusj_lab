@@ -1,1 +1,88 @@
-<!doctype html><html lang="zh-CN"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><meta name="description" content="Notes, essays, and writings by Fushengjun."><title>Note | Fushengjun</title><link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet"><link rel="icon" type="image/svg+xml" href="logo.svg"><link rel="stylesheet" href="css/site.css?v=3"></head><body data-page="note"><header class="site-header"><a class="brand" href="index.html" aria-label="Fushengjun home"><img src="logo.svg" alt="F logo"></a><button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button><nav id="primary-navigation" class="nav-links" aria-label="Primary navigation"><a data-nav="about" href="about.html">About</a><a data-nav="note" href="note.html">Note</a><a data-nav="projects" href="projects.html">Projects</a><a data-nav="lab" href="lab.html">Lab</a><a data-nav="contact" href="contact.html">Contact</a></nav></header><main><section class="page-hero section reveal"><p class="eyebrow">02 / Thoughts in orbit</p><h1>Note<br><span>&amp; essays.</span></h1><p class="hero-copy">这里收藏长一点的思考：文章、随笔，以及一路积累的零碎想法。</p></section><section class="section content-section reveal"><div class="section-label">Latest</div><div class="projects-grid"><article class="project-card"><div class="project-topline"><span>ESSAY</span><span>01</span></div><h3>即将更新</h3><p>这个栏目还在准备中。写好的文章和随笔会陆续放在这里。</p><div class="tech-stack"><span>Writing</span><span>Reflection</span></div></article><article class="project-card"><div class="project-topline"><span>NOTE</span><span>02</span></div><h3>即将更新</h3><p>短札、灵感和还没完全成形的念头，也值得先记下来。</p><div class="tech-stack"><span>Ideas</span><span>Draft</span></div></article><article class="project-card"><div class="project-topline"><span>LOG</span><span>03</span></div><h3>即将更新</h3><p>学习记录和阅读笔记，留下那些让我改变想法的瞬间。</p><div class="tech-stack"><span>Learning</span><span>Reading</span></div></article></div></section></main><footer class="site-footer"><span>&#169; 2026 Fushengjun</span><span class="footer-status"><i></i> 持续记录中</span><a href="https://github.com/fushengjun2026-cell" target="_blank" rel="noreferrer">GitHub &#8594;</a></footer><script src="js/site.js?v=3"></script></body></html>
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="description" content="付胜骏的文章、灵感与学习记录。">
+  <title>Note | Fushengjun</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="stylesheet" href="css/site.css?v=5">
+  <link rel="stylesheet" href="css/notes.css?v=1">
+</head>
+<body data-page="note">
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Fushengjun home"><img src="logo.svg" alt="F logo"></a>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button>
+    <nav id="primary-navigation" class="nav-links" aria-label="Primary navigation"><a data-nav="about" href="about.html">About</a><a data-nav="note" href="note.html">Note</a><a data-nav="projects" href="projects.html">Projects</a><a data-nav="lab" href="lab.html">Lab</a><a data-nav="contact" href="contact.html">Contact</a></nav>
+  </header>
+  <main class="notes-main">
+    <section class="section notes-heading">
+      <div><p class="eyebrow">02 / A notebook in progress</p><h1>Notes <span>&amp; moments.</span></h1><p class="hero-copy">记下灵感，整理思考，也留下边学边做的过程。</p></div>
+      <div class="notes-heading-actions">
+        <button class="glass-button" id="new-note" type="button" hidden>写一篇 <span aria-hidden="true">＋</span></button>
+        <button class="notes-text-button" id="connect-notes" type="button">管理笔记 <span aria-hidden="true">↗</span></button>
+        <button class="notes-text-button" id="disconnect-notes" type="button" hidden>退出管理</button>
+      </div>
+    </section>
+    <section class="section notebook" aria-label="笔记列表">
+      <div class="notebook-topline"><span class="section-label">我的笔记 <span id="notes-count">0</span></span><div class="notebook-sync"><span class="notes-status" id="sync-status" role="status">正在读取公开笔记…</span><button class="notes-text-button" id="refresh-notes" type="button">刷新笔记</button></div></div>
+      <div class="notes-toolbar">
+        <div class="notes-filters" role="group" aria-label="按类型筛选">
+          <button class="note-filter is-active" type="button" data-category="all" aria-pressed="true">全部</button>
+          <button class="note-filter" type="button" data-category="essay" aria-pressed="false">随笔</button>
+          <button class="note-filter" type="button" data-category="note" aria-pressed="false">灵感</button>
+          <button class="note-filter" type="button" data-category="log" aria-pressed="false">学习记录</button>
+        </div>
+        <label class="notes-search"><span aria-hidden="true">⌕</span><input id="note-search" type="search" placeholder="搜索标题或正文" aria-label="搜索笔记"></label>
+      </div>
+      <div class="notes-draft" id="draft-banner" hidden><div><strong>有一篇尚未发布的草稿</strong><span>保存在当前设备，继续把它写完吧。</span></div><button class="notes-text-button" id="resume-draft" type="button">继续写 ↗</button></div>
+      <p class="notes-notice" id="notes-notice" role="status" hidden></p>
+      <div class="notes-grid" id="notes-list" aria-live="polite"></div>
+      <div class="notes-empty" id="notes-empty" hidden>
+        <div class="empty-page" aria-hidden="true"><i></i><i></i><i></i></div>
+        <h2 id="empty-title">第一篇，留给一个值得记下的想法。</h2>
+        <p id="empty-copy">这里还没有公开笔记。新的文章、灵感和学习记录会陆续出现。</p>
+        <button class="notes-text-button" id="empty-create" type="button" hidden>开始写第一篇 ↗</button>
+      </div>
+      <noscript><p class="notes-notice">请开启 JavaScript 来阅读和管理笔记。</p></noscript>
+    </section>
+  </main>
+  <footer class="site-footer"><span>© 2026 Fushengjun</span><span class="footer-status"><i></i> 持续记录中</span><a href="https://github.com/fushengjun2026-cell" target="_blank" rel="noreferrer">GitHub ↗</a></footer>
+
+  <dialog class="notes-dialog connect-dialog" id="connect-dialog" aria-labelledby="connect-title">
+    <div class="dialog-topline"><span class="section-label">仅作者管理</span><button class="dialog-close" type="button" data-close="connect-dialog" aria-label="关闭管理窗口">×</button></div>
+    <h2 id="connect-title">连接你的笔记本</h2>
+    <p class="dialog-description">笔记公开保存在你的 GitHub 仓库。连接后，可以在任何设备上新建、编辑和发布。</p>
+    <form id="connect-form">
+      <label class="note-field" for="github-token">GitHub 访问令牌<input id="github-token" type="password" autocomplete="off" spellcheck="false" required placeholder="粘贴专用访问令牌"></label>
+      <p class="token-note">凭证只在本次页面会话中使用，刷新或退出后清除。</p>
+      <details class="connection-help"><summary>首次使用，如何取得访问令牌？</summary><ol><li>在 GitHub <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noreferrer">创建细粒度访问令牌 ↗</a>，设置有效期。</li><li>仓库访问范围选择 <strong>Only select repositories</strong>，仅选 <strong>Fusj_lab</strong>。</li><li>仓库权限中，将 <strong>Contents</strong> 设为 <strong>Read and write</strong>。生成后粘贴到上方。</li></ol><p>使用仓库所有者 fushengjun2026-cell 的账号。笔记发布后任何访客都可以阅读。</p></details>
+      <p class="form-error" id="connect-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button class="glass-button" id="connect-submit" type="submit">连接并管理 <span aria-hidden="true">↗</span></button></div>
+    </form>
+  </dialog>
+
+  <dialog class="notes-dialog editor-dialog" id="editor-dialog" aria-labelledby="editor-heading">
+    <div class="dialog-topline"><span class="section-label" id="editor-heading">新建笔记</span><button class="dialog-close" type="button" data-close="editor-dialog" aria-label="关闭编辑器并保留草稿">×</button></div>
+    <form id="note-form">
+      <label class="note-field title-field" for="note-title">标题<input id="note-title" maxlength="120" required placeholder="给这个想法起个名字" autocomplete="off"></label>
+      <div class="editor-meta"><label class="note-field" for="note-category">类型<select id="note-category"><option value="note">灵感</option><option value="essay">随笔</option><option value="log">学习记录</option></select></label><span id="draft-status" role="status">发布前的内容只作为本地草稿保存</span></div>
+      <label class="note-field body-field" for="note-content">正文<textarea id="note-content" required maxlength="50000" placeholder="从一句话开始，把想法慢慢写清楚。支持换行和段落。"></textarea></label>
+      <div class="editor-footnote"><span id="character-count">0 字</span><span>发布后，所有访客都能阅读</span></div>
+      <p class="form-error" id="editor-error" role="alert" hidden></p>
+      <div class="dialog-actions editor-actions"><button class="notes-text-button delete-note" id="delete-note" type="button" hidden>删除笔记</button><div><button class="glass-button glass-button-secondary" type="button" data-close="editor-dialog">保留草稿</button><button class="glass-button" id="publish-note" type="submit">发布笔记 <span aria-hidden="true">↗</span></button></div></div>
+    </form>
+  </dialog>
+
+  <dialog class="notes-dialog reader-dialog" id="reader-dialog" aria-labelledby="reader-title">
+    <div class="dialog-topline"><span class="section-label" id="reader-category"></span><button class="dialog-close" type="button" data-close="reader-dialog" aria-label="关闭笔记">×</button></div>
+    <h2 id="reader-title"></h2><p class="reader-date" id="reader-date"></p><div class="reader-content" id="reader-content"></div>
+    <div class="dialog-actions" id="reader-actions" hidden><button class="glass-button glass-button-secondary" id="edit-note" type="button">编辑笔记 <span aria-hidden="true">↗</span></button></div>
+  </dialog>
+  <script src="js/site.js?v=3"></script>
+  <script type="module" src="js/notes.js?v=1"></script>
+</body>
+</html>
