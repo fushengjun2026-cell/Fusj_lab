@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="description" content="俄语课文逐句背诵、角色练习与词汇翻卡。">
+  <title>俄语练习室 | Fushengjun</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="stylesheet" href="css/site.css?v=6">
+  <link rel="stylesheet" href="css/russian.css?v=1">
+</head>
+<body data-page="projects" class="russian-room">
+  <header class="site-header">
+    <a class="brand" href="index.html" aria-label="Fushengjun home"><img src="logo.svg" alt="F logo"></a>
+    <button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button>
+    <nav id="primary-navigation" class="nav-links" aria-label="Primary navigation"><a data-nav="about" href="about.html">About</a><a data-nav="note" href="note.html">Note</a><a data-nav="projects" href="projects.html">Projects</a><a data-nav="lab" href="lab.html">Lab</a><a data-nav="contact" href="contact.html">Contact</a></nav>
+  </header>
+  <main>
+    <section class="section room-hero">
+      <div><p class="eyebrow"><a href="projects.html">Projects</a> / 俄语练习室</p><h1 class="page-title">Russian<br><span>practice.</span></h1></div>
+      <div class="room-intro"><p class="section-label">Понемногу, каждый день.</p><p class="hero-copy">从一句话开始，<br>把“看得懂”慢慢变成“说得出”。</p><p class="room-caption">课文背诵 · 角色练习 · 词汇积累</p></div>
+    </section>
+    <section class="section room-workspace" aria-label="俄语学习工作台">
+      <aside class="lesson-shelf">
+        <div class="shelf-top"><span class="section-label">我的课文架</span><span id="library-count" class="small-count">1</span></div>
+        <div id="lesson-list" class="lesson-list" role="group" aria-label="选择课文"></div>
+        <button id="new-lesson" class="room-button room-button-primary" type="button">导入新课文 <span aria-hidden="true">＋</span></button>
+        <div class="shelf-note"><span class="paper-label">一个轻一点的练习节奏</span><ol><li>逐句朗读，熟悉语义。</li><li>遮住原文，试着说出来。</li><li>看提示，自查，再记一次。</li></ol></div>
+        <div class="backup-actions"><button id="import-backup" class="room-link" type="button">导入备份</button><button id="export-backup" class="room-link" type="button">导出备份 ↗</button></div>
+        <input id="backup-file" type="file" accept="application/json,.json" hidden>
+        <p class="storage-caption" id="storage-caption">课文与进度保存在当前浏览器；导出备份可带到其他设备。</p>
+      </aside>
+      <div class="room-desk">
+        <p id="room-notice" class="room-notice" role="status" hidden></p>
+        <div id="storage-warning" class="room-notice storage-warning" role="status" hidden><span id="storage-message"></span><button id="recover-storage" class="room-link" type="button" hidden>下载原始存档</button></div>
+        <header class="lesson-heading"><div><p class="paper-label">正在练习</p><h2 id="lesson-title">让我们认识一下</h2><p id="lesson-subtitle" lang="ru"></p></div><button id="edit-lesson" class="room-link" type="button">编辑课文 ↗</button></header>
+        <div class="lesson-stats" aria-label="当前课文学习概况"><div><strong id="sentence-total">20</strong><span>练习句</span></div><div><strong id="sentence-mastered">0</strong><span>句已掌握</span></div><div><strong id="word-total">16</strong><span>个词与表达</span></div><div class="mastery-meter"><span>慢慢来，每次进步一点</span><progress id="mastery-progress" max="20" value="0" aria-label="课文掌握进度"></progress></div></div>
+        <div class="room-tabs" role="tablist" aria-label="学习内容"><button id="tab-reading" type="button" role="tab" aria-controls="reading-panel" aria-selected="true">课文背诵</button><button id="tab-vocabulary" type="button" role="tab" aria-controls="vocabulary-panel" aria-selected="false" tabindex="-1">词汇专栏</button></div>
+        <section id="reading-panel" role="tabpanel" aria-labelledby="tab-reading">
+          <div class="practice-toolbar"><div class="mode-switch" role="group" aria-label="课文练习模式"><button id="mode-learn" type="button" aria-pressed="true">跟读熟悉</button><button id="mode-recite" type="button" aria-pressed="false">遮住背诵</button></div><label class="compact-label">练习角色<select id="role-filter"><option value="all">全部角色</option></select></label><label class="check-label"><input id="review-only" type="checkbox">只练待复习</label></div>
+          <div id="sentence-empty" class="room-empty" hidden><h3>这一组没有待复习的句子。</h3><p>可以取消筛选，或换一个角色继续练习。</p><button id="show-all-sentences" class="room-button" type="button">练习全部句子</button></div>
+          <article class="sentence-paper" id="sentence-paper">
+            <div class="paper-topline"><span id="sentence-number">01 / 20</span><span id="sentence-status">还没自查</span></div>
+            <div class="speaker-row"><span class="speaker-dot" aria-hidden="true"></span><span id="sentence-speaker" lang="ru">Ли Пин</span></div>
+            <p id="sentence-text" class="russian-sentence" lang="ru"></p>
+            <div id="hidden-original" class="hidden-original" hidden><span>先别看答案，试着说出来。</span><i></i><i></i></div>
+            <div class="meaning-block"><div class="hint-label"><span>中文释义</span><button id="toggle-translation" type="button" class="room-link">隐藏释义</button></div><p id="sentence-translation"></p></div>
+            <div id="keyword-hint" class="hint-block" hidden><span class="paper-label">关键词提示</span><div id="sentence-keywords" class="keyword-chips"></div></div>
+            <div id="reading-hint" class="hint-block" hidden><span class="paper-label" id="reading-hint-label">读音辅助</span><p id="sentence-reading" lang="ru"></p><small id="reading-hint-note">转写用于认字，不是精确音标；发音请结合俄语朗读。</small></div>
+            <div class="sentence-actions"><button id="listen-sentence" class="room-button" type="button">朗读这一句 <span aria-hidden="true">▷</span></button><label class="rate-label">语速<select id="speech-rate" aria-label="朗读语速"><option value="0.7">慢速</option><option value="0.85" selected>稍慢</option><option value="1">正常</option></select></label><div class="hint-actions"><button id="next-hint" class="room-button room-button-primary" type="button" hidden>给我关键词</button><button id="show-answer" class="room-link" type="button" hidden>直接对照原文</button></div></div>
+            <div id="self-check" class="self-check" hidden><label for="recitation-input">也可以默写一句，看看哪里漏了。<span>可选；文字对照不判断发音。</span></label><textarea id="recitation-input" maxlength="2000" lang="ru" placeholder="先背，再试着写下来……" spellcheck="false"></textarea><button id="compare-recitation" class="room-link" type="button">对照我的默写 ↗</button><p id="recitation-result" class="recitation-result" role="status" hidden></p><div class="self-rating"><span id="self-rating-note">揭示原文后，给自己一个诚实的判断。</span><div><button id="sentence-review" class="room-button" type="button">还需复习</button><button id="sentence-known" class="room-button room-button-primary" type="button">已能背出 ✓</button></div></div></div>
+          </article>
+          <div id="sentence-navigation" class="sentence-navigation"><button id="previous-sentence" class="room-button" type="button">← 上一句</button><span id="sentence-position">第 1 句，共 20 句</span><button id="next-sentence" class="room-button" type="button">下一句 →</button></div>
+          <div class="sentence-map" id="sentence-map" role="group" aria-label="选择练习句"></div>
+          <div class="reading-footer"><p id="voice-status" role="status">正在检查设备上的俄语语音……</p><button id="word-from-sentence" type="button" class="room-link">从这句记一个词 ＋</button></div>
+          <p class="keyboard-note">快捷键：← / → 切句，H 逐步提示。输入文字时不会触发。</p>
+        </section>
+        <section id="vocabulary-panel" role="tabpanel" aria-labelledby="tab-vocabulary" hidden>
+          <div class="vocabulary-heading"><div><h3>把常用表达，留在这里。</h3><p>单词和短语都可以收录；释义、重音和例句一起记。</p></div><button id="add-word" class="room-button" type="button">添加词汇 ＋</button></div>
+          <div class="vocabulary-toolbar"><input id="word-search" type="search" placeholder="搜索俄语或中文" aria-label="搜索词汇"><select id="word-scope" aria-label="词汇来源"><option value="current">当前课文</option><option value="all">全部课文</option></select><select id="word-filter" aria-label="词汇掌握程度"><option value="all">全部词汇</option><option value="review">待复习</option><option value="mastered">已掌握</option></select></div>
+          <div class="vocabulary-view-controls"><span id="word-count" class="paper-label">16 个词与表达</span><div class="mode-switch" role="group" aria-label="词汇练习模式"><button id="word-list-mode" type="button" aria-pressed="true">词汇表</button><button id="word-card-mode" type="button" aria-pressed="false">翻卡练习</button></div></div>
+          <div id="vocabulary-empty" class="room-empty" hidden><h3>这里还没有匹配的词汇。</h3><p>试试其他筛选，或把课文里的新词加入词汇表。</p></div>
+          <div id="vocabulary-list" class="vocabulary-list"></div>
+          <div id="word-practice" class="word-practice" hidden>
+            <div class="flashcard-top"><label class="compact-label">出题方向<select id="word-direction"><option value="ru-zh">看俄语，想中文</option><option value="zh-ru">看中文，想俄语</option></select></label><span id="flash-position">1 / 16</span><button id="shuffle-words" class="room-link" type="button">打乱顺序 ↻</button></div>
+            <button id="flip-word" class="word-flashcard" type="button"><span id="flash-prompt" class="paper-label">先想一想中文意思</span><strong id="flash-front" lang="ru"></strong><span id="flash-back" hidden></span><span id="flash-instruction">点击翻卡，核对答案 ↗</span></button>
+            <div id="flash-example" class="flash-example" hidden><p id="flash-example-ru" lang="ru"></p><p id="flash-example-zh"></p></div>
+            <div class="flash-actions"><button id="listen-word" class="room-button" type="button">听这个词 ▷</button><button id="word-review" class="room-button" type="button" disabled>还需复习</button><button id="word-known" class="room-button room-button-primary" type="button" disabled>记住了 ✓</button><button id="next-word" class="room-link" type="button">下一张 →</button></div>
+          </div>
+        </section>
+      </div>
+    </section>
+    <noscript><p class="section room-notice">请开启 JavaScript 使用逐句练习、词汇翻卡和本地保存。</p></noscript>
+  </main>
+  <footer class="site-footer"><span>© 2026 Fushengjun</span><span class="footer-status"><i></i> 一句一句，慢慢记住</span><a href="projects.html">返回 Projects ↗</a></footer>
+  <dialog id="lesson-dialog" class="room-dialog lesson-dialog" aria-labelledby="lesson-editor-title">
+    <div class="dialog-heading"><div><p class="paper-label">课文整理台</p><h2 id="lesson-editor-title">导入新课文</h2></div><button type="button" class="room-close" data-close="lesson-dialog" aria-label="关闭课文编辑">×</button></div>
+    <form id="lesson-form">
+      <div class="form-pair"><label>课文名称<input id="edit-lesson-title" maxlength="120" required placeholder="例如：让我们认识一下"></label><label>俄语标题／备注<input id="edit-lesson-subtitle" maxlength="160" placeholder="选填"></label></div>
+      <details id="source-details" open><summary>粘贴原文，自动分句</summary><p>支持「角色：俄语（中文）」格式，也可以只贴俄语。中文、重音与关键词都可在下方修改。</p><textarea id="passage-input" maxlength="60000" rows="7" placeholder="Ли Пин: Здравствуйте!（您好！）&#10;Антон: Добрый день!（下午好！）"></textarea><button id="split-passage" class="room-button" type="button">整理为逐句练习 ↓</button></details>
+      <p id="parse-message" class="form-help" role="status"></p><div id="sentence-editors" class="sentence-editors"></div>
+      <button id="append-sentence" class="room-link" type="button">手动添加一句 ＋</button>
+      <p class="form-help">只填原文也可以保存。释义和重音不会自动猜测；可先练习，再逐步补齐标注。</p>
+      <p id="lesson-error" class="form-error" role="alert" hidden></p>
+      <div class="dialog-actions"><button id="delete-lesson" class="room-link danger-link" type="button" hidden>删除这篇课文</button><div><button type="button" class="room-button" data-close="lesson-dialog">取消</button><button type="submit" class="room-button room-button-primary">保存课文并练习 ↗</button></div></div>
+    </form>
+  </dialog>
+  <dialog id="word-dialog" class="room-dialog word-dialog" aria-labelledby="word-editor-title">
+    <div class="dialog-heading"><div><p class="paper-label">词汇专栏</p><h2 id="word-editor-title">记一个新词</h2></div><button type="button" class="room-close" data-close="word-dialog" aria-label="关闭词汇编辑">×</button></div>
+    <form id="word-form"><label>收录到课文<select id="edit-word-lesson"></select></label><div class="form-pair"><label>俄语单词或短语<input id="edit-word" lang="ru" maxlength="120" required placeholder="例如：студент"></label><label>重音／读音提示<input id="edit-word-reading" maxlength="200" placeholder="例如：студе́нт"></label></div><label>中文词义<input id="edit-word-meaning" maxlength="400" required placeholder="例如：男大学生"></label><label>俄语例句<textarea id="edit-word-example" lang="ru" maxlength="2000" rows="3"></textarea></label><label>例句中文<textarea id="edit-word-translation" maxlength="2000" rows="2"></textarea></label><p id="word-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button id="delete-word" type="button" class="room-link danger-link" hidden>删除词条</button><button type="submit" class="room-button room-button-primary">保存词条 ↗</button></div></form>
+  </dialog>
+  <script src="js/site.js?v=3"></script>
+  <script type="module" src="js/russian.js?v=1"></script>
+</body>
+</html>
