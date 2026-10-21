@@ -1,3 +1,12 @@
+@font-face {
+  font-family: "PT Serif";
+  src: url("../assets/fonts/pt-serif-regular.woff") format("woff");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+.russian-room { --russian-text: "PT Serif", "Times New Roman", serif; }
+.russian-room :lang(ru), .russian-room #passage-input { font-family: var(--russian-text); letter-spacing: normal; }
 .russian-room [hidden] { display: none !important; }
 .russian-room button, .russian-room input, .russian-room select, .russian-room textarea { font: inherit; }
 .russian-room button { cursor: pointer; }
@@ -63,7 +72,7 @@
 #sentence-number { color: #a38bb5; font-variant-numeric: tabular-nums; }
 .speaker-row { display: flex; align-items: center; gap: 8px; margin-top: 26px; color: #9b82ab; font-size: .76rem; }
 .speaker-dot { width: 6px; height: 6px; border-radius: 50%; background: #b698c5; }
-.russian-sentence { margin: 13px 0 26px; color: #443451; font-family: Georgia,'Times New Roman',serif; font-size: clamp(1.65rem,3vw,2.25rem); line-height: 1.65; overflow-wrap: anywhere; }
+.russian-sentence { margin: 13px 0 26px; color: #443451; font-family: var(--russian-text); font-size: clamp(1.65rem,3vw,2.25rem); line-height: 1.65; overflow-wrap: anywhere; }
 .hidden-original { display: grid; gap: 15px; min-height: 100px; padding: 25px 0; }
 .hidden-original span { color: #8f7a9b; font-size: .91rem; }
 .hidden-original i { display: block; width: min(75%,330px); height: 1px; background: repeating-linear-gradient(90deg,#dfd2e2 0 8px,transparent 8px 14px); }
@@ -75,8 +84,6 @@
 .hint-block .paper-label { font-size: .66rem; }
 .keyword-chips { display: flex; flex-wrap: wrap; gap: 7px; margin-top: 10px; }
 .keyword-chips span { padding: 6px 11px; border: 1px solid #e4d7ea; border-radius: 7px; background: #f4eef7; color: #8d6da2; font-size: .8rem; }
-.hint-block p { margin: 8px 0; color: #8c7898; font-size: .95rem; line-height: 1.85; overflow-wrap: anywhere; }
-.hint-block small { color: #947d88; font-size: .65rem; line-height: 1.8; }
 .sentence-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; margin-top: 28px; }
 .sentence-actions .room-button { min-height: 38px; padding: 8px 12px; font-size: .73rem !important; }
 .rate-label { display: inline-flex; align-items: center; gap: 5px; color: #ae9ba8; font-size: .65rem; }
@@ -86,7 +93,7 @@
 .self-check { margin-top: 25px; padding-top: 22px; border-top: 1px solid #e9dedf; }
 .self-check > label { display: block; color: #8d7b95; font-size: .79rem; line-height: 1.8; }
 .self-check label span { display: block; color: #947a8a; font-size: .66rem; }
-.self-check textarea { width: 100%; min-height: 94px; margin-top: 10px; padding: 12px; resize: vertical; border: 1px solid #e3d9de; border-radius: 9px; background: #fbf7f1; color: var(--text); font-family: Georgia,serif; font-size: 1rem; line-height: 1.8; }
+.self-check textarea { width: 100%; min-height: 94px; margin-top: 10px; padding: 12px; resize: vertical; border: 1px solid #e3d9de; border-radius: 9px; background: #fbf7f1; color: var(--text); font-family: var(--russian-text); font-size: 1rem; line-height: 1.8; }
 .recitation-result { margin: 8px 0 0; padding: 12px; border-radius: 8px; background: #f2ecf4; color: #7d638e; font-size: .78rem; line-height: 1.85; white-space: pre-line; }
 .self-rating { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
 .self-rating > span { color: #8c7189; font-size: .69rem; }
@@ -119,8 +126,7 @@
 .vocabulary-entry { padding: 20px; border: 1px solid #e3d6d7; border-radius: 13px; background: #fffcf6; }
 .vocabulary-entry:nth-child(3n+2) { background: #f1eaf4; border-color: #e3d6e9; }
 .word-entry-top { display: flex; align-items: start; justify-content: space-between; gap: 18px; }
-.word-entry-top h4 { margin: 0; color: #674c78; font-family: Georgia,serif; font-size: 1.3rem; font-weight: 400; line-height: 1.6; overflow-wrap: anywhere; }
-.word-entry-top small { display: block; margin-top: 4px; color: #ac95b5; font-size: .7rem; line-height: 1.7; overflow-wrap: anywhere; }
+.word-entry-top h4 { margin: 0; color: #674c78; font-family: var(--russian-text); font-size: 1.3rem; font-weight: 400; line-height: 1.6; overflow-wrap: anywhere; }
 .word-entry-top > div:last-child { display: flex; flex-shrink: 0; gap: 12px; }
 .word-entry-top .room-link { font-size: .68rem !important; }
 .word-meaning { margin: 12px 0; color: #80717f; font-size: .86rem; line-height: 1.8; }
@@ -131,7 +137,7 @@
 .flashcard-top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px; margin: 17px 0; }
 #flash-position { color: #a18ba8; font-size: .75rem; }
 .word-flashcard { display: grid; width: 100%; min-height: 260px; place-content: center; justify-items: center; gap: 22px; padding: 35px 28px; border: 1px solid #dccce5; border-radius: 17px; background: #f0e8f4; text-align: center; }
-.word-flashcard strong { color: #74518a; font-family: Georgia,serif; font-size: clamp(1.5rem,4vw,2.4rem); font-weight: 400; line-height: 1.6; overflow-wrap: anywhere; max-width: 100%; }
+.word-flashcard strong { color: #74518a; font-family: var(--russian-text); font-size: clamp(1.5rem,4vw,2.4rem); font-weight: 400; line-height: 1.6; overflow-wrap: anywhere; max-width: 100%; }
 #flash-back { padding-top: 15px; border-top: 1px solid #d9c7e1; color: #80678f; font-size: 1rem; line-height: 1.8; }
 #flash-instruction { color: #ab92b6; font-size: .7rem; }
 .flash-example { margin-top: 17px; padding: 18px 22px; border: 1px solid #e4d7d5; border-radius: 12px; background: #fffaf0; }

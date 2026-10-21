@@ -9,8 +9,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="preload" href="assets/fonts/pt-serif-regular.woff" as="font" type="font/woff" crossorigin>
   <link rel="stylesheet" href="css/site.css?v=7">
-  <link rel="stylesheet" href="css/russian.css?v=1">
+  <link rel="stylesheet" href="css/russian.css?v=2">
 </head>
 <body data-page="projects" class="russian-room">
   <header class="site-header">
@@ -49,7 +50,6 @@
             <div id="hidden-original" class="hidden-original" hidden><span>先别看答案，试着说出来。</span><i></i><i></i></div>
             <div class="meaning-block"><div class="hint-label"><span>中文释义</span><button id="toggle-translation" type="button" class="room-link">隐藏释义</button></div><p id="sentence-translation"></p></div>
             <div id="keyword-hint" class="hint-block" hidden><span class="paper-label">关键词提示</span><div id="sentence-keywords" class="keyword-chips"></div></div>
-            <div id="reading-hint" class="hint-block" hidden><span class="paper-label" id="reading-hint-label">读音辅助</span><p id="sentence-reading" lang="ru"></p><small id="reading-hint-note">转写用于认字，不是精确音标；发音请结合俄语朗读。</small></div>
             <div class="sentence-actions"><button id="listen-sentence" class="room-button" type="button">朗读这一句 <span aria-hidden="true">▷</span></button><label class="rate-label">语速<select id="speech-rate" aria-label="朗读语速"><option value="0.7">慢速</option><option value="0.85" selected>稍慢</option><option value="1">正常</option></select></label><div class="hint-actions"><button id="next-hint" class="room-button room-button-primary" type="button" hidden>给我关键词</button><button id="show-answer" class="room-link" type="button" hidden>直接对照原文</button></div></div>
             <div id="self-check" class="self-check" hidden><label for="recitation-input">也可以默写一句，看看哪里漏了。<span>可选；文字对照不判断发音。</span></label><textarea id="recitation-input" maxlength="2000" lang="ru" placeholder="先背，再试着写下来……" spellcheck="false"></textarea><button id="compare-recitation" class="room-link" type="button">对照我的默写 ↗</button><p id="recitation-result" class="recitation-result" role="status" hidden></p><div class="self-rating"><span id="self-rating-note">揭示原文后，给自己一个诚实的判断。</span><div><button id="sentence-review" class="room-button" type="button">还需复习</button><button id="sentence-known" class="room-button room-button-primary" type="button">已能背出 ✓</button></div></div></div>
           </article>
@@ -79,7 +79,7 @@
   <dialog id="lesson-dialog" class="room-dialog lesson-dialog" aria-labelledby="lesson-editor-title">
     <div class="dialog-heading"><div><p class="paper-label">课文整理台</p><h2 id="lesson-editor-title">导入新课文</h2></div><button type="button" class="room-close" data-close="lesson-dialog" aria-label="关闭课文编辑">×</button></div>
     <form id="lesson-form">
-      <div class="form-pair"><label>课文名称<input id="edit-lesson-title" maxlength="120" required placeholder="例如：让我们认识一下"></label><label>俄语标题／备注<input id="edit-lesson-subtitle" maxlength="160" placeholder="选填"></label></div>
+      <div class="form-pair"><label>课文名称<input id="edit-lesson-title" maxlength="120" required placeholder="例如：让我们认识一下"></label><label>俄语标题／备注<input id="edit-lesson-subtitle" lang="ru" maxlength="160" placeholder="选填"></label></div>
       <details id="source-details" open><summary>粘贴原文，自动分句</summary><p>支持「角色：俄语（中文）」格式，也可以只贴俄语。中文、重音与关键词都可在下方修改。</p><textarea id="passage-input" maxlength="60000" rows="7" placeholder="Ли Пин: Здравствуйте!（您好！）&#10;Антон: Добрый день!（下午好！）"></textarea><button id="split-passage" class="room-button" type="button">整理为逐句练习 ↓</button></details>
       <p id="parse-message" class="form-help" role="status"></p><div id="sentence-editors" class="sentence-editors"></div>
       <button id="append-sentence" class="room-link" type="button">手动添加一句 ＋</button>
@@ -90,9 +90,9 @@
   </dialog>
   <dialog id="word-dialog" class="room-dialog word-dialog" aria-labelledby="word-editor-title">
     <div class="dialog-heading"><div><p class="paper-label">词汇专栏</p><h2 id="word-editor-title">记一个新词</h2></div><button type="button" class="room-close" data-close="word-dialog" aria-label="关闭词汇编辑">×</button></div>
-    <form id="word-form"><label>收录到课文<select id="edit-word-lesson"></select></label><div class="form-pair"><label>俄语单词或短语<input id="edit-word" lang="ru" maxlength="120" required placeholder="例如：студент"></label><label>重音／读音提示<input id="edit-word-reading" maxlength="200" placeholder="例如：студе́нт"></label></div><label>中文词义<input id="edit-word-meaning" maxlength="400" required placeholder="例如：男大学生"></label><label>俄语例句<textarea id="edit-word-example" lang="ru" maxlength="2000" rows="3"></textarea></label><label>例句中文<textarea id="edit-word-translation" maxlength="2000" rows="2"></textarea></label><p id="word-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button id="delete-word" type="button" class="room-link danger-link" hidden>删除词条</button><button type="submit" class="room-button room-button-primary">保存词条 ↗</button></div></form>
+    <form id="word-form"><label>收录到课文<select id="edit-word-lesson"></select></label><div class="form-pair"><label>俄语单词或短语<input id="edit-word" lang="ru" maxlength="120" required placeholder="例如：студент"></label><label>重音／读音提示<input id="edit-word-reading" lang="ru" maxlength="200" placeholder="例如：студе́нт"></label></div><label>中文词义<input id="edit-word-meaning" maxlength="400" required placeholder="例如：男大学生"></label><label>俄语例句<textarea id="edit-word-example" lang="ru" maxlength="2000" rows="3"></textarea></label><label>例句中文<textarea id="edit-word-translation" maxlength="2000" rows="2"></textarea></label><p id="word-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button id="delete-word" type="button" class="room-link danger-link" hidden>删除词条</button><button type="submit" class="room-button room-button-primary">保存词条 ↗</button></div></form>
   </dialog>
   <script src="js/site.js?v=3"></script>
-  <script type="module" src="js/russian.js?v=1"></script>
+  <script type="module" src="js/russian.js?v=2"></script>
 </body>
 </html>

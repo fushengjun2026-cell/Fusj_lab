@@ -1,4 +1,4 @@
-import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, transliterate, validateLesson, setProgress, progressStatus, compareRecitation } from './russian-core.js?v=1';
+import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation } from './russian-core.js?v=1';
 import { STARTER_LESSONS } from './russian-lessons.js?v=1';
 
 const $ = id => document.getElementById(id);
@@ -7,7 +7,7 @@ const message = (id, text = '') => { $(id).textContent = text; $(id).hidden = !t
 let storage = null;
 try { storage = localStorage; } catch {}
 const repo = new RoomRepository(storage, STARTER_LESSONS);
-let mode = 'learn', hint = 3, role = 'all', sentenceId = null, showTranslation = true;
+let mode = 'learn', hint = 2, role = 'all', sentenceId = null, showTranslation = true;
 let wordView = 'list', wordKey = null, wordRevealed = false, wordOrder = [];
 let lessonDraft = null, wordDraft = null, lessonDirty = false, wordDirty = false, rawDirty = false;
 let voices = [], utterance = null, speechEpoch = 0;
@@ -54,7 +54,7 @@ function renderHeading() {
 }
 function renderPractice(reset = false) {
   const queue = sentenceQueue(), current = currentSentence();
-  if (reset) { hint = mode === 'learn' ? 3 : 0; $('recitation-input').value = ''; message('recitation-result'); stopSpeech(); }
+  if (reset) { hint = mode === 'learn' ? 2 : 0; $('recitation-input').value = ''; message('recitation-result'); stopSpeech(); }
   $('mode-learn').setAttribute('aria-pressed', String(mode === 'learn'));
   $('mode-recite').setAttribute('aria-pressed', String(mode === 'recite'));
   for (const id of ['sentence-paper','sentence-navigation','sentence-map']) $(id).hidden = !current;
@@ -62,7 +62,7 @@ function renderPractice(reset = false) {
   $('word-from-sentence').disabled = !current;
   if (!current) { $('sentence-map').replaceChildren(); return; }
   sentenceId = current.id;
-  const index = queue.findIndex(s => s.id === current.id), originalVisible = mode === 'learn' || hint >= 3;
+  const index = queue.findIndex(s => s.id === current.id), originalVisible = mode === 'learn' || hint >= 2;
   $('sentence-number').textContent = `${String(index + 1).padStart(2,'0')} / ${String(queue.length).padStart(2,'0')}`;
   $('sentence-status').textContent = statusNames[progressStatus(repo.state, lesson().id, 'sentences', current.id)];
   $('sentence-speaker').textContent = current.speaker || '课文';
@@ -72,13 +72,9 @@ function renderPractice(reset = false) {
   $('sentence-translation').textContent = showTranslation ? (current.translation || '这句尚未添加中文释义，可在「编辑课文」补充。') : '释义已隐藏，试着直接用俄语思考。';
   $('toggle-translation').textContent = showTranslation ? '隐藏释义' : '显示释义';
   $('keyword-hint').hidden = mode === 'recite' && hint < 1;
-  $('sentence-keywords').replaceChildren(...(current.keywords.length ? current.keywords : ['这句尚未设置关键词']).map(text => el('span', '', text)));
-  $('reading-hint').hidden = mode === 'recite' && hint < 2;
-  $('sentence-reading').textContent = current.pronunciation || transliterate(current.text);
-  $('reading-hint-label').textContent = current.pronunciation ? '读音提示（手动标注）' : '辅助转写';
-  $('reading-hint-note').hidden = !!current.pronunciation;
-  $('next-hint').hidden = mode === 'learn'; $('next-hint').disabled = hint >= 3;
-  $('next-hint').textContent = ['给我关键词','再看读音','揭示原文','原文已揭示'][hint];
+  $('sentence-keywords').replaceChildren(...(current.keywords.length ? current.keywords : ['这句尚未设置关键词']).map(text => { const keyword = el('span', '', text); if (current.keywords.length) keyword.lang = 'ru'; return keyword; }));
+  $('next-hint').hidden = mode === 'learn'; $('next-hint').disabled = hint >= 2;
+  $('next-hint').textContent = ['给我关键词','揭示原文','原文已揭示'][hint];
   $('show-answer').hidden = originalVisible;
   $('self-check').hidden = mode !== 'recite';
   for (const id of ['sentence-review','sentence-known','compare-recitation']) $(id).disabled = !originalVisible;
@@ -100,7 +96,7 @@ function moveSentence(delta) { const queue = sentenceQueue(), index = queue.find
 function setMode(value) { mode = value; renderPractice(true); }
 function rateSentence(status) {
   guarded(() => {
-    const current = currentSentence(); if (!current || mode !== 'recite' || hint < 3) return;
+    const current = currentSentence(); if (!current || mode !== 'recite' || hint < 2) return;
     save(state => setProgress(state, lesson().id, 'sentences', current.id, status));
     renderShelf(); renderHeading(); renderPractice(!sentenceQueue().some(item => item.id === current.id));
     $('self-rating-note').textContent = status === 'mastered' ? '已记下这次进步。可以继续下一句。' : '已加入待复习，之后可单独练习。';
@@ -156,7 +152,7 @@ function renderVocabulary() {
   if (wordView === 'list') for (const item of words) {
     const card = el('article','vocabulary-entry'), top = el('div','word-entry-top'), left = el('div'), actions = el('div');
     const title = el('h4','',item.word.pronunciation || item.word.word); title.lang = 'ru';
-    left.append(title,el('small','',transliterate(item.word.pronunciation || item.word.word)));
+    left.append(title);
     const listen = el('button','room-link','朗读 ▷'); listen.type = 'button'; listen.dataset.speech = 'word'; listen.addEventListener('click', () => speak(item.word.pronunciation || item.word.word));
     const edit = el('button','room-link','编辑'); edit.type = 'button'; edit.setAttribute('aria-label', `编辑词汇 ${item.word.word}`); edit.addEventListener('click', () => openWord(item)); actions.append(listen,edit); top.append(left,actions);
     card.append(top,el('p','word-meaning',item.word.meaning));
@@ -172,6 +168,7 @@ function renderVocabulary() {
     $('flash-front').textContent = direction === 'ru-zh' ? (current.word.pronunciation || current.word.word) : current.word.meaning;
     $('flash-front').lang = direction === 'ru-zh' ? 'ru' : 'zh-CN';
     $('flash-back').hidden = !wordRevealed; $('flash-back').textContent = wordRevealed ? (direction === 'ru-zh' ? current.word.meaning : current.word.pronunciation || current.word.word) : '';
+    $('flash-back').lang = direction === 'ru-zh' ? 'zh-CN' : 'ru';
     $('flash-instruction').textContent = wordRevealed ? '想好之后，给这张卡一个判断。' : '点击翻卡，核对答案 ↗';
     $('flash-example').hidden = !wordRevealed || (!current.word.example && !current.word.exampleTranslation);
     $('flash-example-ru').textContent = wordRevealed ? current.word.example : ''; $('flash-example-zh').textContent = wordRevealed ? current.word.exampleTranslation : '';
@@ -197,13 +194,13 @@ function fieldNode(label, name, value, multiline = false) {
   const wrapper = el('label','',label), input = el(multiline ? 'textarea' : 'input'); input.dataset.field = name; input.value = value || '';
   input.maxLength = name === 'speaker' ? 50 : name === 'keywords' ? 2100 : 2000;
   if (multiline) input.rows = 2;
-  if (['text','pronunciation'].includes(name)) input.lang = 'ru';
+  if (['text','pronunciation','speaker','keywords'].includes(name)) input.lang = 'ru';
   wrapper.append(input); return wrapper;
 }
 function collectSentences() {
   return Array.from($('sentence-editors').children, card => {
     const value = key => card.querySelector(`[data-field="${key}"]`).value;
-    return { id: card.dataset.id, text: value('text'), speaker: value('speaker'), translation: value('translation'), pronunciation: value('pronunciation'), keywords: value('keywords').split(/[,，;；]/).map(s => s.trim()).filter(Boolean) };
+    return { id: card.dataset.id, text: value('text'), speaker: value('speaker'), translation: value('translation'), pronunciation: lessonDraft.sentences.find(sentence => sentence.id === card.dataset.id)?.pronunciation || '', keywords: value('keywords').split(/[,，;；]/).map(s => s.trim()).filter(Boolean) };
   });
 }
 function renderSentenceEditors() {
@@ -213,7 +210,7 @@ function renderSentenceEditors() {
     remove.addEventListener('click', () => { lessonDraft.sentences = collectSentences().filter(s => s.id !== sentence.id); lessonDirty = true; renderSentenceEditors(); });
     top.append(el('span','',`第 ${index + 1} 句`),remove);
     const row = el('div','form-pair'); row.append(fieldNode('角色（选填）','speaker',sentence.speaker),fieldNode('关键词，用逗号分隔','keywords',sentence.keywords.join('，')));
-    card.append(top,fieldNode('俄语原文','text',sentence.text,true),fieldNode('中文释义','translation',sentence.translation,true),fieldNode('读音提示／带重音文本（选填）','pronunciation',sentence.pronunciation),row);
+    card.append(top,fieldNode('俄语原文','text',sentence.text,true),fieldNode('中文释义','translation',sentence.translation,true),row);
     return card;
   }));
 }
@@ -311,13 +308,13 @@ $('role-filter').addEventListener('change', () => { role = $('role-filter').valu
 $('review-only').addEventListener('change', () => renderPractice(true));
 $('show-all-sentences').addEventListener('click', () => { $('review-only').checked = false; role = 'all'; $('role-filter').value = 'all'; renderPractice(true); });
 $('toggle-translation').addEventListener('click', () => { showTranslation = !showTranslation; renderPractice(); });
-$('next-hint').addEventListener('click', () => { hint = Math.min(3,hint + 1); renderPractice(); });
-$('show-answer').addEventListener('click', () => { hint = 3; renderPractice(); });
+$('next-hint').addEventListener('click', () => { hint = Math.min(2,hint + 1); renderPractice(); });
+$('show-answer').addEventListener('click', () => { hint = 2; renderPractice(); });
 $('previous-sentence').addEventListener('click', () => moveSentence(-1)); $('next-sentence').addEventListener('click', () => moveSentence(1));
 $('sentence-review').addEventListener('click', () => rateSentence('review')); $('sentence-known').addEventListener('click', () => rateSentence('mastered'));
 $('listen-sentence').addEventListener('click', () => { if (currentSentence()) speak(currentSentence().text); });
 $('compare-recitation').addEventListener('click', () => {
-  if (hint < 3 || !currentSentence()) return;
+  if (hint < 2 || !currentSentence()) return;
   const attempt = $('recitation-input').value.trim(); if (!attempt) { message('recitation-result','先在上方写一句俄语，再对照。'); return; }
   const result = compareRecitation(currentSentence().text,attempt);
   message('recitation-result', result.exact ? '文字对照一致。再听一次，检查自己的发音和重音。' : `匹配 ${result.matched} / ${result.total} 个词。\n${result.missing.length ? `漏写或需改正：${result.missing.join(' · ')}\n` : ''}${result.extra.length ? `多写或不同的词：${result.extra.join(' · ')}` : ''}${result.truncated ? '\n仅对照了前 350 个词。' : ''}`);
@@ -338,7 +335,7 @@ window.addEventListener('keydown', event => {
   if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || document.querySelector('dialog[open]') || event.target.closest('input,textarea,select,[contenteditable="true"]') || $('reading-panel').hidden) return;
   if (event.key === 'ArrowLeft') { event.preventDefault(); moveSentence(-1); }
   if (event.key === 'ArrowRight') { event.preventDefault(); moveSentence(1); }
-  if (event.key.toLowerCase() === 'h' && mode === 'recite') { event.preventDefault(); hint = Math.min(3,hint + 1); renderPractice(); }
+  if (event.key.toLowerCase() === 'h' && mode === 'recite') { event.preventDefault(); hint = Math.min(2,hint + 1); renderPractice(); }
 });
 window.addEventListener('storage', event => { if (event.key === ROOM_KEY) notice('另一个标签页已更新课文库。请先保存或复制编辑内容，再刷新本页载入最新记录。'); });
 window.addEventListener('beforeunload', event => { if (lessonDirty || wordDirty) { event.preventDefault(); event.returnValue = ''; } });
