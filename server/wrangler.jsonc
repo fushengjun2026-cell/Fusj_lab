@@ -1,0 +1,15 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "fusj-notes",
+  "account_id": "52363d572a1594fba87c1cc57dfb33e0",
+  "main": "worker.js",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": true,
+  "vars": {
+    "ALLOWED_ORIGINS": "https://fushengjun2026-cell.github.io,http://127.0.0.1:8765,http://localhost:8765"
+  },
+  "durable_objects": {
+    "bindings": [{ "name": "NOTEBOOK", "class_name": "Notebook" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Notebook"] }]
+}

@@ -1,6 +1,10 @@
-import { GitHubNotesStore, NOTE_CATEGORIES, validateDocument } from './notes-store.js';
+import { PasswordNotesStore, NOTE_CATEGORIES, validateDocument } from './notes-store.js?v=2';
+import { NOTES_API_URL } from './notes-config.js?v=2';
 
-const store = new GitHubNotesStore();
+let sessionStorageForNotes = null;
+try { sessionStorageForNotes = window.sessionStorage; } catch {}
+const localPreview = ['localhost', '127.0.0.1'].includes(location.hostname);
+const store = new PasswordNotesStore(NOTES_API_URL || (localPreview ? 'http://127.0.0.1:8787' : ''), { storage: sessionStorageForNotes });
 const $ = id => document.getElementById(id);
 const DRAFT_KEY = 'fusj.notes.draft.v1';
 let notes = [];
@@ -110,7 +114,7 @@ async function loadNotes() {
   const sequence = ++requestSequence;
   text($('sync-status'), '正在读取公开笔记…');
   $('refresh-notes').disabled = true;
-  // Public reading also works when the browser cannot reach GitHub's API.
+  // Show the latest site snapshot while the online notebook loads.
   if (!store.connected) {
     try {
       const response = await fetch('data/notes.json', { cache: 'no-store' });
@@ -127,7 +131,7 @@ async function loadNotes() {
     if (sequence !== requestSequence) return;
     acceptSnapshot(snapshot);
     showMessage('notes-notice', '');
-    text($('sync-status'), store.connected ? '作者管理 · 已与在线笔记同步' : '公开笔记 · 已同步');
+    text($('sync-status'), store.connected ? '管理模式 · 已与在线笔记同步' : '公开笔记 · 已同步');
     $('sync-status').title = '';
   } catch (error) {
     if (sequence !== requestSequence) return;
@@ -205,21 +209,21 @@ $('connect-form').addEventListener('submit', async event => {
   setBusy(true);
   showMessage('connect-error', '');
   const sequence = ++requestSequence;
-  const token = $('github-token').value;
-  $('github-token').value = '';
+  const password = $('notes-password').value;
+  $('notes-password').value = '';
   text($('connect-submit'), '正在连接…');
   try {
-    const snapshot = await store.connect(token);
+    const snapshot = await store.connect(password);
     if (sequence !== requestSequence) return;
     acceptSnapshot(snapshot);
-    text($('sync-status'), '作者管理 · 已与在线笔记同步');
+    text($('sync-status'), '管理模式 · 已与在线笔记同步');
     $('sync-status').title = '';
     showMessage('notes-notice', '');
     $('connect-dialog').close();
-  } catch (error) { showMessage('connect-error', error.code === 'network' ? '当前浏览器暂时无法连接 GitHub。请用能访问 GitHub 的常规浏览器打开网站后重试，或检查网络连接。' : error.message); }
-  finally { setBusy(false); text($('connect-submit'), '连接并管理 ↗'); }
+  } catch (error) { showMessage('connect-error', error.code === 'network' ? '暂时无法连接笔记服务，请检查网络后重试。' : error.message); }
+  finally { setBusy(false); text($('connect-submit'), '进入管理 ↗'); }
 });
-$('connect-dialog').addEventListener('close', () => { $('github-token').value = ''; });
+$('connect-dialog').addEventListener('close', () => { $('notes-password').value = ''; });
 $('disconnect-notes').addEventListener('click', () => {
   if (busy) return;
   saveDraft();
@@ -286,7 +290,7 @@ $('note-form').addEventListener('submit', async event => {
     text($('sync-status'), '已发布 · 所有设备可读取');
     showMessage('notes-notice', '笔记已公开发布。');
     openReader(note.id);
-  } catch (error) { showMessage('editor-error', error.message); }
+  } catch (error) { render(); showMessage('editor-error', error.message); }
   finally { setBusy(false); }
 });
 
@@ -302,8 +306,8 @@ $('delete-note').addEventListener('click', async () => {
     $('editor-dialog').close();
     editor = null;
     text($('sync-status'), '已同步删除');
-    showMessage('notes-notice', '笔记已从公开列表中删除。历史版本仍可在仓库中查看。');
-  } catch (error) { showMessage('editor-error', error.message); }
+    showMessage('notes-notice', '笔记已从公开列表中删除。');
+  } catch (error) { render(); showMessage('editor-error', error.message); }
   finally { setBusy(false); }
 });
 
@@ -338,4 +342,18 @@ window.addEventListener('hashchange', () => {
   if (id) openReader(id); else $('reader-dialog').close();
 });
 
-loadNotes();
+async function startNotes() {
+  try {
+    const snapshot = await store.restore();
+    if (snapshot) {
+      acceptSnapshot(snapshot);
+      text($('sync-status'), '管理模式 · 已与在线笔记同步');
+      openLinkedNote();
+      return;
+    }
+  } catch (error) {
+    if (error.code === 'network') showMessage('notes-notice', '暂时无法恢复管理登录，请稍后点击「管理笔记」重新进入。');
+  }
+  await loadNotes();
+}
+startNotes();

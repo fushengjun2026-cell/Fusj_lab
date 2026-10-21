@@ -1,156 +1,168 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GitHubNotesStore, encodeDocument, decodeDocument, validateDocument } from '../js/notes-store.js';
+import { DatabaseSync } from 'node:sqlite';
+import { NotebookService } from '../server/notebook.js';
+import { PasswordNotesStore } from '../js/notes-store.js';
+import { validateDocument, encodeDocument, decodeDocument } from '../js/notes-document.js';
 
-const owner = 'fushengjun2026-cell';
-const timestamp = '2026-10-12T01:00:00.000Z';
-const makeNote = (id = 'first', content = '第一段：一个想法。\n\n第二段：中文与 emoji 🌱') => ({ id, title: '学习笔记', category: 'log', content, createdAt: timestamp, updatedAt: timestamp });
-
-function fakeGitHub(initial = []) {
-  const state = { document: { version: 1, notes: structuredClone(initial) }, sha: 'one', writes: 0, calls: [], owner, denyWrite: false, beforeWrite: null, lostResponse: false };
+const makeNote = (id = 'first', content = '第一段：一个想法。\n\n第二段：中文与 emoji 🌱') => ({ id, title: '学习笔记', category: 'log', content, createdAt: '2026-10-12T01:00:00.000Z', updatedAt: '2026-10-12T01:00:00.000Z' });
+function fixture(initial = []) {
+  const db = new DatabaseSync(':memory:');
+  const storage = {
+    sql: { exec(query, ...args) { const statement = db.prepare(query); if (statement.columns().length) return statement.all(...args); statement.run(...args); return []; } },
+    transactionSync(callback) {
+      db.exec('BEGIN');
+      try { const result = callback(); db.exec('COMMIT'); return result; }
+      catch (error) { db.exec('ROLLBACK'); throw error; }
+    }
+  };
+  const env = { NOTES_PASSWORD: 'fixture-password' };
+  let now = Date.now();
+  let service = new NotebookService(storage, env, { version: 1, notes: initial }, () => now);
+  const state = { lostResponse: false, calls: [], advance(ms) { now += ms; }, restart() { service = new NotebookService(storage, env, undefined, () => now); } };
   const request = async (url, options = {}) => {
     state.calls.push({ url, options });
-    assert.ok(url.startsWith('https://api.github.com/'));
-    assert.equal(options.credentials, 'omit');
-    assert.equal(options.referrerPolicy, 'no-referrer');
-    if (url.endsWith('/user')) return Response.json({ login: state.owner });
-    if (url.endsWith('/Fusj_lab')) return Response.json({ permissions: { push: true }, private: false });
-    if (options.method !== 'PUT') return Response.json({ encoding: 'base64', content: encodeDocument(state.document), sha: state.sha });
-    assert.equal(options.headers.Authorization, 'Bearer fixture-token');
-    if (state.denyWrite) return Response.json({}, { status: 403 });
-    if (state.beforeWrite) { const handler = state.beforeWrite; state.beforeWrite = null; handler(state); }
-    const body = JSON.parse(options.body);
-    if (body.sha !== state.sha) return Response.json({}, { status: 409 });
-    state.document = decodeDocument(body.content);
-    state.sha += '-next';
-    state.writes++;
-    if (state.lostResponse) { state.lostResponse = false; throw new Error('connection lost after commit'); }
-    return Response.json({ content: { sha: state.sha } });
+    const req = new Request(url, options);
+    req.headers.set('x-notes-client', 'fixture');
+    const response = await service.fetch(req);
+    if (state.lostResponse && options.method === 'PUT' && response.ok) { state.lostResponse = false; throw new Error('lost response'); }
+    return response;
   };
-  return { state, request };
+  const storageMap = new Map();
+  const browserStorage = { getItem: key => storageMap.get(key) || null, setItem: (key, value) => storageMap.set(key, value), removeItem: key => storageMap.delete(key) };
+  const client = () => new PasswordNotesStore('https://notes.test', { request, storage: browserStorage });
+  return { db, env, state, service, request, client, browserStorage };
 }
+const apiRequest = (path, method = 'GET', value, token) => new Request(`https://notes.test/api/${path}`, {
+  method, headers: { ...(value === undefined ? {} : { 'Content-Type': 'application/json' }), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+  ...(value === undefined ? {} : { body: JSON.stringify(value) })
+});
 
-test('Unicode content and blank lines survive repository encoding', () => {
+test('Unicode paragraphs survive encoding and malformed/duplicate data is rejected', () => {
   const document = { version: 1, notes: [makeNote()] };
   assert.deepEqual(decodeDocument(encodeDocument(document)), document);
+  assert.throws(() => validateDocument({ version: 1, notes: [makeNote(), makeNote()] }));
+  assert.throws(() => validateDocument({ version: 2, notes: [] }));
 });
 
-test('Malformed data and duplicate IDs fail instead of silently dropping notes', () => {
-  assert.throws(() => validateDocument({ version: 2, notes: [] }), { code: 'format' });
-  assert.throws(() => validateDocument({ version: 1, notes: [makeNote(), makeNote()] }), { code: 'format' });
-  assert.throws(() => decodeDocument('not-base64'), { code: 'format' });
+test('Public reading works; direct unauthenticated or forged-session writes are rejected', async () => {
+  const f = fixture([makeNote()]);
+  assert.equal((await (await f.service.fetch(apiRequest('notes'))).json()).document.notes.length, 1);
+  for (const token of [undefined, 'a'.repeat(64)]) {
+    assert.equal((await f.service.fetch(apiRequest('notes', 'PUT', { note: makeNote('new'), expected: null }, token))).status, 401);
+    assert.equal((await f.service.fetch(apiRequest('notes', 'DELETE', { expected: makeNote() }, token))).status, 401);
+  }
+  assert.equal(f.service.snapshot().document.notes.length, 1);
 });
 
-test('Visitors can read without a token but cannot publish', async () => {
-  const { state, request } = fakeGitHub([makeNote()]);
-  const reader = new GitHubNotesStore(request);
-  assert.equal((await reader.read()).document.notes.length, 1);
-  assert.equal(state.calls[0].options.headers.Authorization, undefined);
-  await assert.rejects(reader.save(makeNote('new')), { code: 'auth' });
-  assert.equal(state.writes, 0);
+test('Wrong password cannot enter management; repeated attempts are throttled and later recover', async () => {
+  const f = fixture();
+  const client = f.client();
+  for (let i = 0; i < 5; i++) await assert.rejects(client.connect('wrong'), { code: 'password' });
+  assert.equal(client.connected, false);
+  await assert.rejects(client.connect('fixture-password'), { code: 'rate' });
+  f.state.advance(60001);
+  await client.connect('fixture-password');
+  assert.equal(client.connected, true);
 });
 
-test('Only the repository owner may connect; disconnect removes credentials', async () => {
-  const { state, request } = fakeGitHub();
-  const store = new GitHubNotesStore(request);
-  state.owner = 'someone-else';
-  await assert.rejects(store.connect('fixture-token'), { code: 'owner' });
-  assert.equal(store.connected, false);
-  state.owner = owner;
-  await store.connect('fixture-token');
-  assert.equal(store.connected, true);
-  store.disconnect();
-  await store.read();
-  assert.equal(state.calls.at(-1).options.headers.Authorization, undefined);
-});
-
-test('Create, update, reload on another device, and delete use shared repository data', async () => {
-  const { state, request } = fakeGitHub();
-  const author = new GitHubNotesStore(request);
-  await author.connect('fixture-token');
-  const original = makeNote();
-  await author.save(original);
-  const otherDevice = new GitHubNotesStore(request);
-  assert.deepEqual((await otherDevice.read()).document.notes, [original]);
-  const updated = { ...original, content: '修改后的内容', updatedAt: '2026-10-12T02:00:00.000Z' };
-  await author.save(updated, original);
-  assert.deepEqual((await otherDevice.read()).document.notes, [updated]);
-  await author.remove(updated);
-  assert.equal((await otherDevice.read()).document.notes.length, 0);
-  assert.equal(state.writes, 3);
-});
-
-test('An unrelated simultaneous edit is preserved after SHA conflict retry', async () => {
-  const original = makeNote();
-  const { state, request } = fakeGitHub([original]);
-  const store = new GitHubNotesStore(request);
-  await store.connect('fixture-token');
-  state.beforeWrite = state => { state.document.notes.push(makeNote('other-device')); state.sha = 'changed-elsewhere'; };
-  await store.save({ ...original, title: '新标题', updatedAt: '2026-10-12T03:00:00.000Z' }, original);
-  assert.equal(state.document.notes.length, 2);
-  assert.equal(state.document.notes.find(note => note.id === 'other-device').title, '学习笔记');
-  assert.equal(state.document.notes.find(note => note.id === 'first').title, '新标题');
-});
-
-test('Editing a stale version of the same note never overwrites another device', async () => {
-  const original = makeNote();
-  const { state, request } = fakeGitHub([original]);
-  const store = new GitHubNotesStore(request);
-  await store.connect('fixture-token');
-  state.document.notes[0].content = '另一台设备写的内容';
-  await assert.rejects(store.save({ ...original, content: '过期的修改' }, original), { code: 'edited' });
-  assert.equal(state.document.notes[0].content, '另一台设备写的内容');
-  assert.equal(state.writes, 0);
-});
-
-test('An edit on the same note during a write also fails safely after retry', async () => {
-  const original = makeNote();
-  const { state, request } = fakeGitHub([original]);
-  const store = new GitHubNotesStore(request);
-  await store.connect('fixture-token');
-  state.beforeWrite = state => { state.document.notes[0].content = '同时编辑'; state.sha = 'concurrent-sha'; };
-  await assert.rejects(store.save({ ...original, title: '旧设备新标题' }, original), { code: 'edited' });
-  assert.equal(state.document.notes[0].content, '同时编辑');
-  assert.equal(state.writes, 0);
-});
-
-test('Write permission failures leave published content intact', async () => {
-  const original = makeNote();
-  const { state, request } = fakeGitHub([original]);
-  const store = new GitHubNotesStore(request);
-  await store.connect('fixture-token');
-  state.denyWrite = true;
-  await assert.rejects(store.save({ ...original, title: '改动' }, original), { code: 'permission' });
-  assert.deepEqual(state.document.notes, [original]);
-});
-
-test('Lost commit responses are confirmed by rereading; retries do not duplicate notes', async () => {
-  const { state, request } = fakeGitHub();
-  const store = new GitHubNotesStore(request);
-  await store.connect('fixture-token');
-  state.lostResponse = true;
+test('Password login publishes, edits, and deletes shared notes across independent clients and server restart', async () => {
+  const f = fixture();
+  const author = f.client();
+  await author.connect('fixture-password');
   const note = makeNote();
-  await store.save(note);
-  await store.save(note);
-  assert.equal(state.writes, 1);
-  assert.deepEqual(state.document.notes, [note]);
+  await author.save(note);
+  f.state.restart();
+  assert.deepEqual((await f.client().read()).document.notes, [note]);
+  const updated = { ...note, content: '<img src=x onerror=alert(1)>\n只是正文', updatedAt: '2026-10-12T02:00:00.000Z' };
+  await author.save(updated, note);
+  assert.deepEqual((await f.client().read()).document.notes, [updated]);
+  await author.remove(updated);
+  assert.deepEqual((await f.client().read()).document.notes, []);
 });
 
-test('A missing initial notes file can be created without a SHA', async () => {
-  let published;
-  const base = fakeGitHub();
-  const request = async (url, options) => {
-    if (url.includes('/contents/') && options.method !== 'PUT' && !published) return Response.json({}, { status: 404 });
-    if (options.method === 'PUT') {
-      const payload = JSON.parse(options.body);
-      assert.equal(payload.sha, undefined);
-      published = decodeDocument(payload.content);
-      return Response.json({ content: { sha: 'created' } });
-    }
-    return base.request(url, options);
-  };
-  const store = new GitHubNotesStore(request);
-  await store.connect('fixture-token');
-  await store.save(makeNote());
-  assert.equal(published.notes.length, 1);
+test('Refresh restores server-validated session without storing the password; logout revokes it', async () => {
+  const f = fixture();
+  const author = f.client();
+  await author.connect('fixture-password');
+  const saved = f.browserStorage.getItem(author.sessionKey);
+  assert.equal(saved.includes('fixture-password'), false);
+  const token = JSON.parse(saved).token;
+  const refreshed = f.client();
+  await refreshed.restore();
+  assert.equal(refreshed.connected, true);
+  await refreshed.disconnect();
+  assert.equal(f.browserStorage.getItem(author.sessionKey), null);
+  assert.equal((await f.service.fetch(apiRequest('notes', 'PUT', { note: makeNote(), expected: null }, token))).status, 401);
+});
+
+test('Expired sessions and password rotation prevent writes and clear stale browser sessions', async () => {
+  const f = fixture();
+  const client = f.client();
+  await client.connect('fixture-password');
+  f.state.advance(24 * 60 * 60 * 1000 + 1);
+  await assert.rejects(client.save(makeNote()), { code: 'auth' });
+  assert.equal(client.connected, false);
+  const other = f.client();
+  await other.connect('fixture-password');
+  f.env.NOTES_PASSWORD = 'changed-password';
+  await assert.rejects(f.client().restore(), { code: 'auth' });
+  assert.equal(f.browserStorage.getItem(other.sessionKey), null);
+  assert.deepEqual(f.service.snapshot().document.notes, []);
+});
+
+test('Concurrent unrelated edits survive; stale edits and stale deletes of the same note fail', async () => {
+  const original = makeNote();
+  const f = fixture([original]);
+  const first = f.client(), second = f.client();
+  await first.connect('fixture-password'); await second.connect('fixture-password');
+  await first.save(makeNote('other'));
+  const updated = { ...original, content: '另一位管理者修改了正文' };
+  await second.save(updated, original);
+  await assert.rejects(first.save({ ...original, title: '过期修改' }, original), { code: 'edited' });
+  await assert.rejects(first.remove(original), { code: 'edited' });
+  assert.deepEqual((await first.read()).document.notes, [makeNote('other'), updated]);
+});
+
+test('A lost publish receipt can be confirmed and retried without duplicate notes or history', async () => {
+  const f = fixture();
+  const author = f.client();
+  await author.connect('fixture-password');
+  f.state.lostResponse = true;
+  const note = makeNote();
+  await author.save(note);
+  await author.save(note);
+  assert.deepEqual((await f.client().read()).document.notes, [note]);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM history').get().n, 1);
+});
+
+test('Failed SQL writes roll back both the document and its history', async () => {
+  const f = fixture([makeNote()]);
+  f.db.exec("CREATE TRIGGER reject_write BEFORE UPDATE ON notebook BEGIN SELECT RAISE(ABORT, 'unavailable'); END");
+  const author = f.client();
+  await author.connect('fixture-password');
+  await assert.rejects(author.save(makeNote('new')), { code: 'network' });
+  assert.deepEqual(f.service.snapshot().document.notes, [makeNote()]);
+  assert.equal(f.db.prepare('SELECT COUNT(*) AS n FROM history').get().n, 0);
+});
+
+test('Invalid updates and oversized request bodies cannot change published notes', async () => {
+  const f = fixture([makeNote()]);
+  const author = f.client();
+  await author.connect('fixture-password');
+  const token = JSON.parse(f.browserStorage.getItem(author.sessionKey)).token;
+  const wrongId = { ...makeNote(), id: 'mismatch' };
+  assert.equal((await f.service.fetch(apiRequest('notes', 'PUT', { note: wrongId, expected: makeNote() }, token))).status, 400);
+  assert.equal((await f.service.fetch(apiRequest('notes', 'PUT', { note: { ...makeNote(), content: 'a'.repeat(1100001) } }, token))).status, 413);
+  assert.deepEqual(f.service.snapshot().document.notes, [makeNote()]);
+});
+
+test('Missing server configuration fails closed and history requires valid management login', async () => {
+  const f = fixture();
+  assert.equal((await f.service.fetch(apiRequest('history'))).status, 401);
+  delete f.env.NOTES_PASSWORD;
+  assert.equal((await f.service.fetch(apiRequest('session', 'POST', { password: 'anything' }))).status, 503);
+  const client = new PasswordNotesStore('');
+  await assert.rejects(client.connect('anything'), { code: 'setup' });
+  assert.throws(() => new PasswordNotesStore('http://insecure.test'), { code: 'setup' });
 });

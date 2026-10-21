@@ -1,0 +1,13 @@
+{
+  "name": "fusj-lab",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "notes:dev": "wrangler dev --config server/wrangler.jsonc --port 8787",
+    "notes:deploy": "wrangler deploy --config server/wrangler.jsonc"
+  },
+  "devDependencies": {
+    "wrangler": "^4.149.0"
+  }
+}

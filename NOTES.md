@@ -1,52 +1,85 @@
 # 笔记的阅读与管理
 
-Note 是公开笔记页，作者可新建、编辑、删除。已发布的笔记保存于
-`fushengjun2026-cell/Fusj_lab` 仓库 `main` 分支的 `data/notes.json`，
-页面先读取网站自带的已发布版本，然后尝试获取 GitHub 上的最新数据。
-点击「刷新笔记」也会重新读取。
-访客无需登录即可阅读、搜索、按类型筛选，并通过笔记的地址分享单篇内容。
+Note 的管理入口使用统一密码。拥有密码的人可新建、编辑、删除和发布；
+访客无需登录即可阅读、搜索、筛选和分享单篇笔记。
 
-## 首次连接
+## 日常使用
 
-1. 使用仓库所有者账号登录 GitHub，在
-   [细粒度访问令牌设置](https://github.com/settings/personal-access-tokens/new) 中创建专用令牌，设置有效期。
-2. Repository access 选择 Only select repositories，仅选择 Fusj_lab。
-3. Repository permissions 中的 Contents 选择 Read and write。
-4. 打开 Note，点击「管理笔记」，粘贴令牌并连接。
-5. 点击「写一篇」，填写标题、类型和正文，然后「发布笔记」。
+1. 在正式 HTTPS 网站打开 Note，点击「管理笔记」。
+2. 输入管理密码，点击「进入管理」。
+3. 点击「写一篇」或打开现有笔记后点击「编辑笔记」。
+4. 点击「发布笔记」或「发布修改」，其他设备刷新后即可看到。
 
-编辑已发布笔记时，打开全文，点击「编辑笔记」。发布修改后，其他设备和访客
-重新读取页面即可看到修改。如果浏览器无法直接访问 GitHub API，则在网站完成
-新版本发布后读取同站点的公开内容。部署代码后，此入口在正式网站也可以使用。
-刷新页面后需要重新连接；在新设备上也使用同样的管理入口。
+登录有效期为一天，当前标签页刷新后仍可恢复。密码不写入网页、仓库、地址或
+浏览器存储。浏览器标签页会话中只保存随机登录凭证；每次写入都由云端验证。
+退出管理会清除本地凭证，并请求云端撤销登录。密码变更后，旧登录无法再写入。
 
-凭证只保存在当前页面的内存里，只发送到 GitHub API；不写入浏览器存储、
-仓库、笔记或地址。无需把凭证交给开发者，也不要提交到代码里。
-如果令牌过期或权限不足，退出管理，创建或检查专用令牌后重新连接。
-正式网站应使用 HTTPS；本地预览可使用 localhost。
-管理和发布需要浏览器能够访问 `api.github.com`。如果内置预览阻止此域名，
-公开阅读仍可使用网站自带的已发布版本；管理操作需改用能访问 GitHub 的常规浏览器。
+网页代码继续由 GitHub Pages 托管；笔记实时保存在 Cloudflare 的 SQLite
+Durable Object 中，不再通过浏览器写 GitHub 仓库。发布笔记无需触发网站构建。
+GitHub 上的 `data/notes.json` 是初始数据及离线备份，实时发布不会自动修改它。
+在线服务不可达时，网页会明确显示「网站已发布版本」，此时可能不是最新内容。
 
-## 草稿和冲突
+## 草稿和多人编辑
 
-尚未发布的内容会自动保存为当前设备的本地草稿，关闭编辑器后可继续写。
-本地草稿不会跨设备同步，也不会出现在公开仓库。浏览器存储不可用时，编辑器
-会明确提醒复制正文。每台设备只保留一篇草稿，开始另一篇前会提示确认。
+未发布的草稿保存在当前设备，不会跨设备同步，也不会被访客看到。
+浏览器无法保存草稿时，会提示复制正文；发布失败时保留编辑器内容。
 
-发布操作先读取最新在线文件，再合并当前笔记。其他笔记的更新会保留；
-同一篇笔记已在别处修改时，页面拒绝覆盖，并要求合并当前草稿和最新版本。
-网络异常和权限失败时不会宣称发布成功。操作结果不明时会读取在线内容核对。
-删除只从当前公开列表移除，仓库提交历史仍保存之前的版本。
+多人可同时管理。不同笔记的修改会合并保存；同一篇笔记已被其他人修改或删除时，
+旧版本的编辑和删除会被拒绝，避免覆盖对方的内容。发布响应丢失时，重试不会
+重复创建同一篇笔记。正文按纯文本显示，保留段落，不执行其中的 HTML。
 
-正文目前为纯文本，保留换行和段落；输入的 HTML 会作为文字显示。
-每篇标题最多 120 字符，正文最多 50,000 字符；总文件最多 900 KB。
-未连接作者凭证时没有编辑权限；实际写入权限由 GitHub 控制。
+云端保留最近 50 次修改之前的完整笔记本，登录后可通过 `GET /api/history`
+导出历史记录用于恢复。`GET /api/notes` 可导出当前公开笔记本。历史接口不可匿名读取。
 
-## 验证
+## 首次部署（维护者）
 
-运行 `node --test tests/notes-store.test.mjs` 可验证中文读写、权限检查、
-跨设备读取、并发冲突处理、发布失败和请求结果不明时的恢复。
-真实 GitHub 写入需要作者的专用令牌；自动测试使用模拟接口，不写真实仓库。
+需要 Cloudflare 账号；完成一次 Wrangler 登录后，可部署后端。
+使用 Node.js 和 pnpm：
 
-实现依据：[GitHub 仓库内容 API](https://docs.github.com/en/rest/repos/contents) 和
-[个人访问令牌说明](https://docs.github.com/en/authentication/keeping-your-account-and-data-secure/managing-your-personal-access-tokens)。
+```sh
+pnpm install
+pnpm exec wrangler login
+pnpm exec wrangler secret put NOTES_PASSWORD --config server/wrangler.jsonc
+pnpm notes:deploy
+```
+
+`NOTES_PASSWORD` 仅保存在 Cloudflare Secret 中，不填入源码。
+设置为站长指定的管理密码。Wrangler 会创建笔记存储，不需要另外创建数据库。
+如果先部署再设置 Secret，设置完成前所有登录和写入都会被拒绝，公开阅读仍可用。
+
+部署一个 Pages 访问入口（通过 Service Binding 连接上面的笔记服务）：
+
+```sh
+pnpm exec wrangler pages deploy public --cwd server/gateway --project-name fusj-notes-api --branch main
+```
+
+当前公开接口为 `https://fusj-notes-api.pages.dev`。它与 Worker 共用同一份笔记、
+同一套密码验证，不保存第二份数据；用于改善部分网络对 `workers.dev` 的解析问题。
+
+将这个 HTTPS 接口根地址填入 `js/notes-config.js` 的 `NOTES_API_URL`。
+然后提交和发布前端。后端 `ALLOWED_ORIGINS` 包含正式 GitHub Pages 的来源及
+本地预览来源；修改网站域名后需同步更新允许的来源。所有来源只写协议、域名和端口，
+不包含页面路径。`file://` 不支持管理，请用网站地址或本地 HTTP 预览。
+
+`data/notes.json` 只在云端笔记本首次创建时导入。后续部署代码不会覆盖已保存的笔记。
+可重新设置 `NOTES_PASSWORD` 更改管理密码；不用修改前端。登录请求有云端次数限制，
+即使绕过网页直接请求接口，也必须拥有有效登录凭证才能写入。
+
+## 本地验证
+
+在 `server/.dev.vars` 设置本地测试密码（文件已忽略，勿提交），启动：
+
+```sh
+pnpm notes:dev
+python3 -m http.server 8765 --bind 127.0.0.1
+```
+
+打开 `http://127.0.0.1:8765/note.html`；在线地址尚未配置时，本地页面自动连接
+`http://127.0.0.1:8787`。本地和线上存储完全隔离。不要把本地测试笔记发布到正式环境。
+
+运行 `pnpm test` 验证密码、服务端权限、登录有效期、跨设备读写、并发冲突、
+发布重试、数据库回滚与请求大小限制。测试使用内存 SQLite，不写云端或 GitHub。
+
+参考：[GitHub Pages](https://docs.github.com/en/pages/getting-started-with-github-pages/creating-a-github-pages-site)、
+[Cloudflare Secrets](https://developers.cloudflare.com/workers/configuration/secrets/)、
+[SQLite Durable Object](https://developers.cloudflare.com/durable-objects/api/sqlite-storage-api/)。

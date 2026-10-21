@@ -89,7 +89,7 @@ h2 { margin-bottom: 0; font-size: clamp(2.45rem,4.6vw,4.6rem); line-height: 1.11
 .footer-status i { display: inline-block; width: 7px; height: 7px; margin-right: 7px; border-radius: 50%; background: #9c80bc; }
 
 .page-hero { display: flex; min-height: 460px; flex-direction: column; align-items: flex-start; justify-content: center; padding: 100px 0 72px; text-align: left; }
-.page-hero h1 { margin-bottom: 22px; font-size: clamp(4.15rem,8vw,7.5rem); }
+.page-hero h1, .page-title { margin-bottom: 22px; font-size: clamp(4.15rem,8vw,7.5rem); }
 .page-hero .hero-copy { margin-bottom: 0; }
 .skills-grid { margin-top: 0; }
 .skills-grid .project-card { min-height: 305px; }
@@ -218,7 +218,7 @@ h2 { margin-bottom: 0; font-size: clamp(2.45rem,4.6vw,4.6rem); line-height: 1.11
   .site-footer { width: calc(100% - 36px); flex-wrap: wrap; padding-bottom: 28px; }
   .footer-status { order: 3; width: 100%; }
   .page-hero { min-height: 370px; padding: 80px 0 62px; }
-  .page-hero h1 { font-size: clamp(3.9rem,14vw,6rem); }
+  .page-hero h1, .page-title { font-size: clamp(3.9rem,14vw,6rem); }
   .chess-page-hero, .game-2048-hero { padding-top: 72px; }
   .chess-shell, .game-2048-shell { padding: 12px; border-radius: 16px; }
   .chess-toolbar { align-items: flex-start; }
