@@ -13,7 +13,7 @@
 }
 * { box-sizing: border-box; }
 html { scroll-behavior: smooth; }
-body { min-height: 100vh; margin: 0; overflow-x: hidden; color: var(--text); background: radial-gradient(circle at 84% 12%, #eee3f3 0, transparent 34%), linear-gradient(180deg, #fcfaf5, var(--bg) 54%, #faf7f1); font-family: "DM Sans", "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
+body { min-height: 100vh; margin: 0; overflow-x: hidden; color: var(--text); background: radial-gradient(circle at 84% 12%, #eee3f3 0, transparent 34%), linear-gradient(180deg, #fcfaf5, var(--bg) 54%, #faf7f1); background-attachment: fixed; background-repeat: no-repeat; font-family: "DM Sans", "PingFang SC", "Microsoft YaHei", sans-serif; -webkit-font-smoothing: antialiased; }
 body::before { position: fixed; inset: 0; z-index: 40; pointer-events: none; content: ""; background: url("paper-grain.svg") repeat; opacity: .22; mix-blend-mode: multiply; }
 body.gate-active { overflow: hidden; }
 a { color: inherit; text-decoration: none; }
