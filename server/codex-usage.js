@@ -1,4 +1,4 @@
-import { normalizeUsage } from '../js/usage-data.js';
+import { normalizeUsage, mergeUsageActivity } from '../js/usage-data.js';
 import { NotesError } from '../js/notes-document.js';
 
 export class CodexUsage {
@@ -18,6 +18,7 @@ export class CodexUsage {
     return this.storage.transactionSync(() => {
       const current = this.read();
       if (current.snapshot && sampled < Date.parse(current.snapshot.sampledAt)) throw new NotesError('已保留更新的用量记录。', 'edited');
+      snapshot.activity = mergeUsageActivity(current.snapshot?.activity, snapshot.activity);
       this.sql.exec('INSERT INTO codex_usage (id, document, received_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET document = excluded.document, received_at = excluded.received_at', JSON.stringify(snapshot), new Date(now).toISOString());
       return { ok: true, sampledAt: snapshot.sampledAt };
     });

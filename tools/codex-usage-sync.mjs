@@ -1,16 +1,44 @@
 import { spawn } from 'node:child_process';
 import { createInterface } from 'node:readline';
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile, mkdir, rename, chmod } from 'node:fs/promises';
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { resolve, dirname } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { usageFromCodex } from '../js/usage-data.js';
+import { usageFromCodex, normalizeUsage, mergeUsageActivity } from '../js/usage-data.js';
 
 const children = new Set();
 const tracked = child => { children.add(child); child.once('exit', () => children.delete(child)); child.once('error', () => children.delete(child)); return child; };
 
+export const activityDay = now => new Date(now + 8 * 3600000).toISOString().slice(0, 10);
+export class DailyUsageCache {
+  constructor(path) { this.path = path; this.attemptedDay = null; this.snapshot = null; }
+  async load() {
+    try {
+      const state = JSON.parse(await readFile(this.path, 'utf8'));
+      this.snapshot = state.snapshot ? normalizeUsage(state.snapshot) : null;
+      this.attemptedDay = typeof state.attemptedDay === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(state.attemptedDay) ? state.attemptedDay : null;
+    } catch (error) { if (error.code !== 'ENOENT') throw new Error('本机每日用量缓存无法读取，请检查缓存文件。'); }
+    return this;
+  }
+  async save() {
+    await mkdir(dirname(this.path), { recursive: true, mode: 0o700 });
+    const temporary = this.path + '.tmp';
+    await writeFile(temporary, JSON.stringify({ version: 1, attemptedDay: this.attemptedDay, snapshot: this.snapshot }), { mode: 0o600 });
+    await chmod(temporary, 0o600); await rename(temporary, this.path);
+  }
+  async beginActivityRead(now = Date.now()) {
+    if (this.attemptedDay === activityDay(now)) return false;
+    // Persist before requesting so restarts or a failed response cannot create a retry loop.
+    this.attemptedDay = activityDay(now); await this.save(); return true;
+  }
+  async remember(snapshot) {
+    this.snapshot = normalizeUsage({ ...snapshot, activity: mergeUsageActivity(this.snapshot?.activity, snapshot.activity) });
+    await this.save(); return this.snapshot;
+  }
+}
+
 // Only account read methods are used: no conversation, inference, or earned-reset consumption.
-export async function readUsage(codexPath = 'codex') {
+export async function readUsage(codexPath = 'codex', { includeActivity = true } = {}) {
   const child = tracked(spawn(codexPath, ['app-server', '--listen', 'stdio://'], { stdio: ['pipe', 'pipe', 'pipe'] }));
   const lines = createInterface({ input: child.stdout }), pending = new Map();
   let sequence = 0, stopped = false;
@@ -34,7 +62,7 @@ export async function readUsage(codexPath = 'codex') {
   try {
     await request('initialize', { clientInfo: { name: 'fusj_usage_reader', title: 'FusjLab usage reader', version: '1.0.0' } });
     send({ method: 'initialized', params: {} });
-    const [rates, activity] = await Promise.allSettled([request('account/rateLimits/read'), request('account/usage/read')]);
+    const [rates, activity] = await Promise.allSettled([request('account/rateLimits/read'), includeActivity ? request('account/usage/read') : Promise.resolve(null)]);
     if (rates.status === 'rejected') throw rates.reason;
     return usageFromCodex(rates.value, activity.status === 'fulfilled' ? activity.value : null);
   } finally {
@@ -76,14 +104,18 @@ async function main() {
   let config; try { config = JSON.parse(await readFile(configPath, 'utf8')); } catch { throw new Error('请先配置本机的用量同步文件。'); }
   if (config.proxyUrl) process.env.HTTPS_PROXY = config.proxyUrl;
   const interval = Math.max(60000, Math.min(3600000, (config.intervalSeconds || 60) * 1000));
+  const cache = await new DailyUsageCache(configPath + '.cache.json').load();
   let busy = false;
   const cycle = async () => {
     if (busy) return;
     busy = true;
     try {
-      const snapshot = await readUsage(config.codexPath);
+      const includeActivity = await cache.beginActivityRead();
+      const incoming = await readUsage(config.codexPath, { includeActivity });
+      if (includeActivity && !mergeUsageActivity(null, incoming.activity)) console.error(new Date().toISOString() + ' 每日统计暂未返回，保留上次记录，下一天再读取。');
+      const snapshot = await cache.remember(incoming);
       await uploadUsage(config, snapshot);
-      console.log(new Date().toISOString() + ' 用量同步成功。');
+      console.log(new Date().toISOString() + ' 额度同步成功；每日统计按北京时间每天读取一次。');
     } catch (error) {
       console.error(new Date().toISOString() + ' ' + error.message);
       if (args.includes('--once')) process.exitCode = 1;

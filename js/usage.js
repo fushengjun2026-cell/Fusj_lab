@@ -1,6 +1,6 @@
 import { PasswordNotesStore } from './notes-store.js?v=4';
 import { NOTES_API_URL } from './notes-config.js';
-import { normalizeUsage, quotaView } from './usage-data.js?v=1';
+import { normalizeUsage, quotaView } from './usage-data.js?v=2';
 
 const $ = id => document.getElementById(id);
 const el = (tag, className = '', text = '') => { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; };
@@ -15,7 +15,7 @@ const dateTime = value => new Intl.DateTimeFormat('zh-CN', { month: 'numeric', d
 function authenticated(value) {
   generation++; busy = false;
   $('usage-access').hidden = value; $('usage-dashboard').hidden = !value;
-  if (!value) { snapshot = null; chartRows = []; selectDay(null); $('quota-grid').replaceChildren(); $('activity-summary').replaceChildren(); $('activity-chart').replaceChildren(); $('chart-dates').replaceChildren(); $('usage-daily-table').replaceChildren(); $('usage-extras').replaceChildren(); $('usage-values').hidden = true; $('sync-time').textContent = '—'; $('activity-caption').textContent = ''; $('usage-plan').textContent = 'Codex'; }
+  if (!value) { snapshot = null; chartRows = []; selectDay(null); $('quota-grid').replaceChildren(); $('activity-summary').replaceChildren(); $('activity-chart').replaceChildren(); $('chart-dates').replaceChildren(); $('usage-daily-table').replaceChildren(); $('usage-extras').replaceChildren(); $('usage-values').hidden = true; $('sync-time').textContent = '—'; $('activity-caption').textContent = ''; $('activity-updated').textContent = ''; $('usage-plan').textContent = 'Codex'; }
 }
 function notice(text) { $('usage-error').textContent = text; $('usage-error').hidden = !text; }
 function fresh() { return snapshot && Date.now() - Date.parse(snapshot.sampledAt) <= 180000; }
@@ -65,6 +65,7 @@ function renderQuotas() {
 }
 function renderActivity() {
   const summary = snapshot.activity?.summary;
+  $('activity-updated').textContent = snapshot.activity?.sampledAt ? `每天更新一次 · 最近成功：${dateTime(snapshot.activity.sampledAt)}（北京时间）` : '每天更新一次 · 等待每日统计';
   const values = [['累计 Token', compact(summary?.lifetimeTokens), summary?.lifetimeTokens == null ? '账号暂未提供' : `${format(summary.lifetimeTokens)} Token`], ['单日最高 Token', compact(summary?.peakDailyTokens), summary?.peakDailyTokens == null ? '账号暂未提供' : `${format(summary.peakDailyTokens)} Token`], ['当前连续使用', summary?.currentStreakDays == null ? '—' : `${format(summary.currentStreakDays)} 天`, '按账号活动记录统计'], ['最长连续使用', summary?.longestStreakDays == null ? '—' : `${format(summary.longestStreakDays)} 天`, '保持自己的节奏']];
   $('activity-summary').replaceChildren(...values.map(([name, value, help]) => { const item = el('div', 'activity-stat'); item.append(el('span', '', name), el('strong', '', value), el('small', '', help)); return item; }));
   renderChart();

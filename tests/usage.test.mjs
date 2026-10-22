@@ -1,7 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { DatabaseSync } from 'node:sqlite';
-import { normalizeUsage, usageFromCodex, quotaView } from '../js/usage-data.js';
+import { mkdtemp, readFile, writeFile, stat, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { normalizeUsage, usageFromCodex, quotaView, mergeUsageActivity } from '../js/usage-data.js';
+import { DailyUsageCache, activityDay, readUsage } from '../tools/codex-usage-sync.mjs';
 import { NotebookService } from '../server/notebook.js';
 
 function sample(now = Date.now()) {
@@ -74,4 +78,68 @@ test('Missing sync setup fails closed and expired or logged-out management sessi
   const renewed = await f.login();
   await f.call('session', 'DELETE', undefined, renewed);
   assert.equal((await f.call('codex-usage', 'GET', undefined, renewed)).status, 401);
+});
+test('Partial or absent activity keeps known daily values, zeros, summary fields and the last successful timestamp', () => {
+  const now = Date.now(), previous = normalizeUsage(sample(now)).activity;
+  assert.deepEqual(mergeUsageActivity(previous, null), previous);
+  const empty = normalizeUsage({ ...sample(now + 1000), activity: { summary: {}, daily: [] } }).activity;
+  assert.deepEqual(mergeUsageActivity(previous, empty), previous);
+  const partial = normalizeUsage({ ...sample(now + 1000), activity: { summary: { currentStreakDays: 8 }, daily: [{ date: '2026-10-21', tokens: null }, { date: '2026-10-22', tokens: 12500 }] } }).activity;
+  const merged = mergeUsageActivity(previous, partial);
+  assert.equal(merged.summary.lifetimeTokens, 1234567);
+  assert.equal(merged.summary.currentStreakDays, 8);
+  assert.deepEqual(merged.daily, [{ date: '2026-10-21', tokens: 0 }, { date: '2026-10-22', tokens: 12500 }]);
+  assert.deepEqual(mergeUsageActivity(merged, previous), merged);
+  const bad = sample(now); bad.activity.sampledAt = new Date(now + 180000).toISOString();
+  assert.throws(() => normalizeUsage(bad), /每日统计时间/);
+});
+test('Fresh quota uploads cannot erase previous activity or relabel its timestamp as freshly fetched', async () => {
+  const f = fixture(), owner = await f.login(), token = f.env.USAGE_SYNC_TOKEN;
+  await f.call('codex-usage/sync', 'PUT', sample(f.now), token);
+  const initial = (await (await f.call('codex-usage', 'GET', undefined, owner)).json()).snapshot;
+  f.advance(60000);
+  const ratesOnly = sample(f.now); ratesOnly.activity = null; ratesOnly.limits[0].primary.usedPercent = 25;
+  assert.equal((await f.call('codex-usage/sync', 'PUT', ratesOnly, token)).status, 200);
+  f.restart();
+  const updated = (await (await f.call('codex-usage', 'GET', undefined, owner)).json()).snapshot;
+  assert.equal(updated.limits[0].primary.usedPercent, 25);
+  assert.equal(updated.sampledAt, ratesOnly.sampledAt);
+  assert.deepEqual(updated.activity, initial.activity);
+});
+test('Daily activity attempts persist across restarts and failures and reset only on a new Beijing date', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'fusj-usage-cache-'));
+  try {
+    const path = join(folder, 'cache.json'), beforeMidnight = Date.parse('2026-10-22T15:59:59Z');
+    assert.equal(activityDay(beforeMidnight), '2026-10-22');
+    assert.equal(activityDay(beforeMidnight + 1000), '2026-10-23');
+    const cache = await new DailyUsageCache(path).load();
+    assert.equal(await cache.beginActivityRead(beforeMidnight), true);
+    await cache.remember(sample(beforeMidnight));
+    assert.equal(await cache.beginActivityRead(beforeMidnight + 500), false);
+    const restarted = await new DailyUsageCache(path).load();
+    assert.equal(await restarted.beginActivityRead(beforeMidnight + 500), false);
+    const ratesOnly = sample(beforeMidnight + 500); ratesOnly.activity = null;
+    const saved = await restarted.remember(ratesOnly);
+    assert.equal(saved.activity.sampledAt, new Date(beforeMidnight).toISOString());
+    assert.equal(saved.activity.summary.lifetimeTokens, 1234567);
+    assert.equal(await restarted.beginActivityRead(beforeMidnight + 1000), true);
+    // No successful response follows this attempt: a restart still must not retry it every minute.
+    const failedRestart = await new DailyUsageCache(path).load();
+    assert.equal(await failedRestart.beginActivityRead(beforeMidnight + 61000), false);
+    assert.equal((await stat(path)).mode & 0o777, 0o600);
+    assert.equal(JSON.stringify(failedRestart.snapshot).includes('Authorization'), false);
+  } finally { await rm(folder, { recursive: true, force: true }); }
+});
+test('Quota-only cycles send no account/usage/read request; daily cycles explicitly opt in', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'fusj-usage-reader-'));
+  try {
+    const script = join(folder, 'mock-codex.mjs'), log = join(folder, 'methods.log');
+    await writeFile(script, `#!${process.execPath}\nimport {createInterface} from 'node:readline';\nimport {appendFileSync} from 'node:fs';\nfor await (const line of createInterface({input:process.stdin})) {\n const request=JSON.parse(line);\n appendFileSync(${JSON.stringify(log)},request.method+'\\n');\n if(request.id==null)continue;\n const result=request.method==='account/rateLimits/read'?{rateLimits:{limitId:'codex',primary:{usedPercent:12}}}:request.method==='account/usage/read'?{summary:{lifetimeTokens:10000},dailyUsageBuckets:[{startDate:'2026-10-22',tokens:10000}]}:{};\n process.stdout.write(JSON.stringify({id:request.id,result})+'\\n');\n}\n`, { mode: 0o700 });
+    const ratesOnly = await readUsage(script, { includeActivity: false });
+    assert.equal(ratesOnly.activity, null);
+    assert.equal((await readFile(log, 'utf8')).includes('account/usage/read'), false);
+    const full = await readUsage(script, { includeActivity: true });
+    assert.equal(full.activity.daily[0].tokens, 10000);
+    assert.equal((await readFile(log, 'utf8')).split('\n').filter(method => method === 'account/usage/read').length, 1);
+  } finally { await rm(folder, { recursive: true, force: true }); }
 });

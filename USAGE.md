@@ -9,13 +9,18 @@
 
 ## 更新方式
 
-本机同步程序每 60 秒通过 `codex app-server` 读取 `account/rateLimits/read`
-和 `account/usage/read`。前者提供额度分组、周期、已用比例、重置时间、点数及
-可用重置次数；后者提供累计 Token、连续使用天数和每日 Token 记录。
+本机同步程序每 60 秒通过 `codex app-server` 读取 `account/rateLimits/read`，
+获取额度分组、周期、已用比例、重置时间、点数及可用重置次数。
+`account/usage/read` 只在每个北京时间日期首次运行时读取一次，获取累计 Token、
+连续使用天数和每日 Token 记录；电脑休眠时顺延到唤醒后的首次同步。
+尝试日期和成功结果保存在私有本机缓存中，重启后仍遵守每天一次；读取失败或
+缺少字段时保留上次成功值，不把未知数据当作零或清空原有图表，下一天再尝试。
+页面分别显示额度同步时间和每日统计最近成功时间。
 没有返回的项目保持未知，不填入演示数字。
 
 同步程序只上传明确挑选的统计字段，不上传账号 ID、邮箱、授权令牌、提示词或对话。
-Cloudflare 保存最近一条成功同步；网页登录后每 30 秒检查更新。
+Cloudflare 保存最近一条成功同步；网页登录后每 30 秒检查已保存的数据，
+网页刷新不会请求 OpenAI 账号接口。
 电脑关机、休眠、断网、退出 Codex 登录或本地代理不可用时暂停同步。
 超过三分钟没有新记录，网页会明确标为上次同步记录；原额度周期结束后，
 不推算新的剩余额度，等待下一条成功同步。
@@ -24,6 +29,8 @@ Cloudflare 保存最近一条成功同步；网页登录后每 30 秒检查更�
 
 使用 Node.js 22+、已登录的本机 Codex CLI 和系统 curl。
 默认配置路径：`~/Library/Application Support/FusjLab/codex-usage.json`，权限为 `600`。
+同目录的 `codex-usage.json.cache.json` 保存统计缓存与每日尝试日期，权限同为 `600`，
+不包含登录凭证。请保留它，以免重启程序后重复请求每日统计。
 
 配置字段：`syncUrl`、`syncToken`、`codexPath`、`intervalSeconds`，以及可选 `proxyUrl`。
 同步密钥由维护者随机生成，与 Cloudflare Secret `USAGE_SYNC_TOKEN` 一致，

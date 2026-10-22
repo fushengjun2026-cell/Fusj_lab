@@ -33,10 +33,21 @@ export function normalizeUsage(value) {
         return { date: item.date, tokens: number(item.tokens) };
       }).sort((a, b) => a.date.localeCompare(b.date));
     }
-    activity = { summary, daily };
+    const sampledAt = value.activity.sampledAt ?? value.sampledAt;
+    if (typeof sampledAt !== 'string' || !Number.isFinite(Date.parse(sampledAt)) || Date.parse(sampledAt) > Date.parse(value.sampledAt) + 120000) throw new Error('每日统计时间不正确。');
+    activity = { sampledAt: new Date(sampledAt).toISOString(), summary, daily };
   }
   // Deliberately select statistical fields; never retain account IDs or credentials.
   return { version: 1, sampledAt: new Date(value.sampledAt).toISOString(), limits, resetsAvailable: number(value.resetsAvailable, 100000), activity };
+}
+export function mergeUsageActivity(previous, incoming) {
+  if (!incoming || (!fields.some(key => incoming.summary?.[key] != null) && !incoming.daily?.some(row => row.tokens != null))) return previous || null;
+  if (previous && Date.parse(previous.sampledAt) > Date.parse(incoming.sampledAt)) return previous;
+  const summary = Object.fromEntries(fields.map(key => [key, incoming.summary?.[key] ?? previous?.summary?.[key] ?? null]));
+  const records = new Map((previous?.daily || []).map(row => [row.date, row]));
+  for (const row of incoming.daily || []) records.set(row.date, { date: row.date, tokens: row.tokens ?? records.get(row.date)?.tokens ?? null });
+  const daily = incoming.daily == null && previous?.daily == null ? null : [...records.values()].sort((a, b) => a.date.localeCompare(b.date)).slice(-400);
+  return { sampledAt: incoming.sampledAt, summary, daily };
 }
 export function usageFromCodex(rates, activity, now = Date.now()) {
   const buckets = rates?.rateLimitsByLimitId && Object.keys(rates.rateLimitsByLimitId).length ? Object.entries(rates.rateLimitsByLimitId) : rates?.rateLimits ? [[rates.rateLimits.limitId || 'codex', rates.rateLimits]] : [];
