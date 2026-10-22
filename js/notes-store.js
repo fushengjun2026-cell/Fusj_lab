@@ -81,6 +81,10 @@ export class PasswordNotesStore {
     const result = await this.#api('/api/notes', {}, '');
     return { document: validateDocument(result.document) };
   }
+  async readUsage() {
+    if (!this.connected) throw new NotesError('请先输入管理密码。', 'auth');
+    return this.#api('/api/codex-usage');
+  }
   async save(note, expected = null) {
     const validated = validateDocument({ version: 1, notes: [note] }).notes[0];
     return this.#mutate(validated.id, validated, expected, 'PUT');

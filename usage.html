@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1.0">
+  <meta name="description" content="Fushengjun 的个人 Codex 用量与工作节奏。">
+  <meta name="robots" content="noindex,nofollow">
+  <title>Codex 用量 | Fushengjun</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/svg+xml" href="logo.svg">
+  <link rel="stylesheet" href="css/site.css?v=7">
+  <link rel="stylesheet" href="css/usage.css?v=1">
+</head>
+<body data-page="lab" class="usage-page">
+  <header class="site-header"><a class="brand" href="index.html" aria-label="Fushengjun home"><img src="logo.svg" alt="F logo"></a><button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button><nav id="primary-navigation" class="nav-links" aria-label="Primary navigation"><a data-nav="about" href="about.html">About</a><a data-nav="note" href="note.html">Note</a><a data-nav="projects" href="projects.html">Projects</a><a data-nav="lab" href="lab.html">Lab</a><a data-nav="contact" href="contact.html">Contact</a></nav></header>
+  <main>
+    <section class="page-hero section usage-hero"><p class="eyebrow"><a href="lab.html">Lab</a> / Personal dashboard</p><h1>A little<br><span>headroom.</span></h1><p class="hero-copy">看看剩下的额度，也看看一路积累的工作。<br>我的 Codex 用量与工作节奏。</p></section>
+    <section class="section usage-content" aria-label="个人 Codex 用量">
+      <div id="usage-access" class="usage-access">
+        <div><p class="section-label">A private working space</p><h2>给自己的<br>一小块仪表盘。</h2><p>用现有的笔记管理密码，<br>查看剩余额度、重置时间和每日用量。</p><span class="privacy-label">管理密码验证后可见</span></div>
+        <form id="usage-login"><label for="usage-password">管理密码</label><input id="usage-password" type="password" name="password" autocomplete="current-password" required maxlength="256" placeholder="输入管理密码"><button class="glass-button" id="usage-login-button" type="submit">查看用量 <span>↗</span></button><p id="usage-login-status" class="usage-form-status" role="status"></p></form>
+      </div>
+      <div id="usage-dashboard" hidden>
+        <div class="usage-toolbar"><div><span class="sync-badge" id="sync-badge"><i aria-hidden="true"></i><span id="sync-status">正在读取用量</span></span><p id="sync-time">—</p></div><div class="usage-actions"><button id="refresh-usage" class="usage-button" type="button">刷新数据 ↻</button><button id="usage-logout" class="usage-link" type="button">退出查看</button></div></div>
+        <p id="usage-error" class="usage-notice" role="status" hidden></p>
+        <div id="usage-empty" class="usage-empty" hidden><h2>等待第一条用量记录。</h2><p>本机同步程序连接后，剩余额度和用量详情就会出现在这里。</p></div>
+        <div id="usage-values" hidden>
+          <div class="usage-section-heading"><div><p class="section-label">Room to keep going</p><h2>还可以继续多少。</h2></div><span id="usage-plan" class="privacy-label">Codex</span></div>
+          <div id="quota-grid" class="quota-grid"></div>
+          <div id="usage-extras" class="usage-extras"></div>
+          <section class="activity-section" aria-labelledby="activity-title"><div class="usage-section-heading"><div><p class="section-label">The work, over time</p><h2 id="activity-title">一点一点，积累起来。</h2></div></div><div id="activity-summary" class="activity-summary"></div><div class="usage-chart-card"><div class="chart-heading"><div><h3>每日 Token 用量</h3><p id="activity-caption">账号返回的每日记录</p></div><div class="chart-ranges" role="group" aria-label="用量图时间范围"><button type="button" data-days="7" aria-pressed="false">7 天</button><button type="button" data-days="30" aria-pressed="true">30 天</button><button type="button" data-days="90" aria-pressed="false">90 天</button></div></div><div id="activity-chart" class="activity-chart"></div><div id="chart-dates" class="chart-dates"></div><details id="usage-table-details"><summary>查看每日明细</summary><div class="usage-table-wrap"><table><thead><tr><th scope="col">日期</th><th scope="col">Token 用量</th></tr></thead><tbody id="usage-daily-table"></tbody></table></div></details></div></section>
+          <p class="usage-footnote">额度与 Token 统计分别展示，Token 数不直接换算成剩余额度。每日记录按数据源返回的日期显示。</p>
+        </div>
+        <div class="usage-sync-note"><span class="footer-status"><i></i> 随电脑一起更新</span><p>本机每分钟同步，此页每 30 秒检查新记录。电脑休眠、关机或断网时暂停同步，请留意最后更新时间。</p></div>
+      </div>
+    </section>
+    <noscript><p class="section usage-notice">请开启 JavaScript 查看和刷新个人用量。</p></noscript>
+  </main>
+  <footer class="site-footer"><span>© 2026 Fushengjun</span><span class="footer-status"><i></i> 给专注留一点余地</span><a href="lab.html">返回 Lab ↗</a></footer>
+  <script src="js/site.js?v=3"></script>
+  <script type="module" src="js/usage.js?v=1"></script>
+</body>
+</html>

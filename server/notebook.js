@@ -1,4 +1,5 @@
 import { NotesError, validateDocument, encodeDocument, sameNote } from '../js/notes-document.js';
+import { CodexUsage } from './codex-usage.js';
 
 const SESSION_MS = 24 * 60 * 60 * 1000;
 const MAX_REQUEST_BYTES = 1100000;
@@ -45,6 +46,7 @@ export class NotebookService {
     this.sql = storage.sql;
     this.env = env;
     this.now = now;
+    this.usage = new CodexUsage(storage, now);
     this.sql.exec('CREATE TABLE IF NOT EXISTS notebook (id INTEGER PRIMARY KEY, document TEXT NOT NULL)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS sessions (token_hash TEXT PRIMARY KEY, expires INTEGER NOT NULL, password_tag TEXT NOT NULL)');
     this.sql.exec('CREATE TABLE IF NOT EXISTS attempts (client TEXT PRIMARY KEY, starts INTEGER NOT NULL, count INTEGER NOT NULL)');
@@ -133,6 +135,16 @@ export class NotebookService {
   async fetch(request) {
     try {
       const path = new URL(request.url).pathname.replace(/\/$/, '');
+      if (path === '/api/codex-usage' && request.method === 'GET') {
+        await this.authorize(request);
+        return json(this.usage.read());
+      }
+      if (path === '/api/codex-usage/sync' && request.method === 'PUT') {
+        if (!this.env.USAGE_SYNC_TOKEN) throw new NotesError('用量同步尚未完成设置。', 'setup');
+        const token = request.headers.get('authorization')?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
+        if (!token || !equal(await hash(token), await hash(this.env.USAGE_SYNC_TOKEN))) throw new NotesError('用量同步授权无效。', 'auth');
+        return json(this.usage.save(await body(request)));
+      }
       if (path === '/api/notes' && request.method === 'GET') return json(this.snapshot());
       if (path === '/api/session' && request.method === 'POST') return await this.login(request);
       if (path === '/api/session' && request.method === 'GET') { await this.authorize(request); return json(this.snapshot()); }
