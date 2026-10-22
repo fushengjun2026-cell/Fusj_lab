@@ -57,7 +57,7 @@ body:has(.notes-dialog[open]) { overflow: hidden; }
 .note-field input, .note-field textarea, .note-field select { display: block; width: 100%; min-width: 0; padding: 13px 14px; border: 1px solid #e2d8cd; border-radius: 10px; background: #fcfaf5; color: var(--text); font: inherit; font-size: 1rem; font-weight: 400; }
 .note-field input::placeholder, .note-field textarea::placeholder { color: #a09a9e; }
 .note-field select { padding-right: 30px; cursor: pointer; }
-.title-field input { padding: 14px 0; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; font-size: clamp(1.4rem,3vw,2rem); font-weight: 600; }
+.title-field input { font-size: clamp(1.4rem,3vw,2rem); font-weight: 600; }
 .editor-meta { display: flex; align-items: end; justify-content: space-between; gap: 20px; margin: 22px 0; }
 .editor-meta .note-field { min-width: 130px; }
 #draft-status { max-width: 310px; padding-bottom: 10px; color: #8e8297; font-size: .73rem; line-height: 1.6; text-align: right; }
