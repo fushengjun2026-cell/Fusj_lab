@@ -8,13 +8,14 @@ let sessionStorageSafe = null;
 try { sessionStorageSafe = sessionStorage; } catch {}
 const store = new PasswordNotesStore(NOTES_API_URL, { storage: sessionStorageSafe });
 let snapshot = null, busy = false, networkError = '', days = 30, generation = 0;
-const format = value => value == null ? '—' : new Intl.NumberFormat('zh-CN', { maximumFractionDigits: 1 }).format(value);
-const compact = value => value == null ? '—' : value >= 1e8 ? `${format(value / 1e8)} 亿` : value >= 1e4 ? `${format(value / 1e4)} 万` : format(value);
+let selectedDate = null, chartRows = [];
+const format = (value, maximumFractionDigits = 1) => value == null ? '—' : new Intl.NumberFormat('zh-CN', { maximumFractionDigits }).format(value);
+const compact = value => value == null ? '—' : value >= 1e8 ? `${format(value / 1e8, 2)} 亿` : value >= 1e4 ? `${format(value / 1e4, 2)} 万` : format(value);
 const dateTime = value => new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Shanghai' }).format(new Date(value));
 function authenticated(value) {
   generation++; busy = false;
   $('usage-access').hidden = value; $('usage-dashboard').hidden = !value;
-  if (!value) { snapshot = null; $('quota-grid').replaceChildren(); $('activity-summary').replaceChildren(); $('activity-chart').replaceChildren(); $('usage-daily-table').replaceChildren(); $('usage-extras').replaceChildren(); $('usage-values').hidden = true; $('sync-time').textContent = '—'; $('activity-caption').textContent = ''; $('usage-plan').textContent = 'Codex'; }
+  if (!value) { snapshot = null; chartRows = []; selectDay(null); $('quota-grid').replaceChildren(); $('activity-summary').replaceChildren(); $('activity-chart').replaceChildren(); $('chart-dates').replaceChildren(); $('usage-daily-table').replaceChildren(); $('usage-extras').replaceChildren(); $('usage-values').hidden = true; $('sync-time').textContent = '—'; $('activity-caption').textContent = ''; $('usage-plan').textContent = 'Codex'; }
 }
 function notice(text) { $('usage-error').textContent = text; $('usage-error').hidden = !text; }
 function fresh() { return snapshot && Date.now() - Date.parse(snapshot.sampledAt) <= 180000; }
@@ -68,28 +69,66 @@ function renderActivity() {
   $('activity-summary').replaceChildren(...values.map(([name, value, help]) => { const item = el('div', 'activity-stat'); item.append(el('span', '', name), el('strong', '', value), el('small', '', help)); return item; }));
   renderChart();
 }
+function selectDay(date, focus = false) {
+  const index = chartRows.findIndex(row => row.date === date), row = chartRows[index];
+  selectedDate = row?.date || null;
+  $('chart-day-detail').hidden = !row; $('chart-help').hidden = !row;
+  $('chart-day-date').textContent = row ? `${row.date} · 当日用量` : '';
+  $('chart-day-tokens').textContent = row ? compact(row.tokens) : '';
+  $('chart-day-exact').textContent = row ? `共 ${format(row.tokens)} Token` : '';
+  $('chart-day-previous').disabled = !row || index === 0;
+  $('chart-day-next').disabled = !row || index === chartRows.length - 1;
+  for (const column of $('activity-chart').querySelectorAll('.chart-day')) {
+    const selected = column.dataset.date === selectedDate;
+    column.setAttribute('aria-pressed', String(selected)); column.setAttribute('tabindex', selected ? '0' : '-1');
+    if (selected && focus) column.focus({ preventScroll: true });
+  }
+}
+function moveDay(offset, focus = false) {
+  const index = chartRows.findIndex(row => row.date === selectedDate);
+  const row = chartRows[Math.max(0, Math.min(chartRows.length - 1, index + offset))];
+  if (row) selectDay(row.date, focus);
+}
 function renderChart() {
   for (const button of document.querySelectorAll('[data-days]')) button.setAttribute('aria-pressed', String(Number(button.dataset.days) === days));
   const daily = snapshot.activity?.daily || [], latest = daily.at(-1)?.date;
   const since = latest ? new Date(Date.parse(latest) - (days - 1) * 86400000).toISOString().slice(0, 10) : '';
   const visible = daily.filter(row => row.date >= since), available = visible.filter(row => row.tokens != null);
+  const restoreFocus = $('activity-chart').contains(document.activeElement);
+  chartRows = available;
   $('activity-chart').replaceChildren(); $('chart-dates').replaceChildren(); $('usage-daily-table').replaceChildren();
   $('usage-table-details').hidden = !visible.length;
-  if (!available.length) { $('activity-chart').append(el('p', '', '账号暂未返回这段时间的每日用量记录。')); $('activity-caption').textContent = '收到用量详情后，这里会显示真实的日记录。'; return; }
+  for (const row of [...visible].reverse()) { const tr = el('tr'); tr.append(el('td', '', row.date), el('td', '', format(row.tokens))); $('usage-daily-table').append(tr); }
+  if (!available.length) { selectDay(null); $('activity-chart').append(el('p', '', '账号暂未返回这段时间的每日用量记录。')); $('activity-caption').textContent = '收到用量详情后，这里会显示真实的日记录。'; return; }
   const total = available.reduce((sum, row) => sum + row.tokens, 0);
   $('activity-caption').textContent = `截至 ${latest}，近 ${days} 天共 ${compact(total)} Token · ${available.length} 个记录日`;
   const ns = 'http://www.w3.org/2000/svg', svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 900 180'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('role', 'img'); svg.setAttribute('aria-label', `每日 Token 用量，共 ${format(total)}，下方可展开每日明细。`);
+  svg.setAttribute('viewBox', '0 0 900 180'); svg.setAttribute('preserveAspectRatio', 'none'); svg.setAttribute('role', 'group'); svg.setAttribute('aria-label', '每日 Token 用量，点选柱子查看当日明细'); svg.setAttribute('aria-describedby', 'chart-help');
   const peak = Math.max(1, ...available.map(row => row.tokens)), gap = 900 / days;
   for (let i = 0; i < 4; i++) { const line = document.createElementNS(ns, 'line'); for (const [key, value] of Object.entries({ x1: 0, x2: 900, y1: 18 + i * 50, y2: 18 + i * 50, stroke: '#ece4da', 'stroke-width': 1 })) line.setAttribute(key, value); svg.append(line); }
   for (const row of available) {
     const index = Math.round((Date.parse(row.date) - Date.parse(since)) / 86400000), height = row.tokens === 0 ? 1 : Math.max(2, row.tokens / peak * 150);
-    const bar = document.createElementNS(ns, 'rect');
-    for (const [key, value] of Object.entries({ x: index * gap + gap * .15, y: 168 - height, width: gap * .7, height, rx: Math.min(4, gap * .15), fill: row.date === latest ? '#8160a5' : '#c8b4db' })) bar.setAttribute(key, value);
-    const title = document.createElementNS(ns, 'title'); title.textContent = `${row.date}：${format(row.tokens)} Token`; bar.append(title); svg.append(bar);
+    const column = document.createElementNS(ns, 'g');
+    column.classList.add('chart-day'); column.dataset.date = row.date;
+    column.setAttribute('role', 'button'); column.setAttribute('aria-controls', 'chart-day-detail');
+    column.setAttribute('aria-label', `${row.date}：${compact(row.tokens)} Token，共 ${format(row.tokens)} Token`);
+    const title = document.createElementNS(ns, 'title'); title.textContent = `${row.date}：${compact(row.tokens)} Token`;
+    const hit = document.createElementNS(ns, 'rect'); hit.classList.add('chart-hit');
+    for (const [key, value] of Object.entries({ x: index * gap, y: 0, width: gap, height: 180, rx: 4 })) hit.setAttribute(key, value);
+    const bar = document.createElementNS(ns, 'rect'); bar.classList.add('chart-bar');
+    for (const [key, value] of Object.entries({ x: index * gap + gap * .15, y: 168 - height, width: gap * .7, height, rx: Math.min(4, gap * .15) })) bar.setAttribute(key, value);
+    column.append(title, hit, bar);
+    column.addEventListener('click', () => selectDay(row.date, true));
+    column.addEventListener('keydown', event => {
+      if (!['Enter', ' ', 'ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) return;
+      event.preventDefault();
+      if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') moveDay(event.key === 'ArrowLeft' ? -1 : 1, true);
+      else selectDay(event.key === 'Home' ? available[0].date : event.key === 'End' ? available.at(-1).date : row.date, true);
+    });
+    svg.append(column);
   }
   $('activity-chart').append(svg); $('chart-dates').append(el('span', '', since), el('span', '', latest));
-  for (const row of [...visible].reverse()) { const tr = el('tr'); tr.append(el('td', '', row.date), el('td', '', format(row.tokens))); $('usage-daily-table').append(tr); }
+  selectDay(available.some(row => row.date === selectedDate) ? selectedDate : available.at(-1).date, restoreFocus);
 }
 async function refresh() {
   if (busy || !store.connected) return;
@@ -115,6 +154,8 @@ $('usage-login').addEventListener('submit', async event => {
   finally { $('usage-login-button').disabled = false; }
 });
 $('refresh-usage').addEventListener('click', refresh);
+$('chart-day-previous').addEventListener('click', () => moveDay(-1));
+$('chart-day-next').addEventListener('click', () => moveDay(1));
 $('usage-logout').addEventListener('click', async () => { authenticated(false); $('usage-password').value = ''; $('usage-login-status').textContent = ''; await store.disconnect(); });
 for (const button of document.querySelectorAll('[data-days]')) button.addEventListener('click', () => { days = Number(button.dataset.days); if (snapshot) renderChart(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });

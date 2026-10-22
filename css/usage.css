@@ -66,7 +66,24 @@
 .activity-chart { min-height: 180px; margin-top: 24px; }
 .activity-chart svg { display: block; width: 100%; height: 180px; }
 .activity-chart p { padding: 42px 8px; color: var(--muted); font-size: .85rem; line-height: 1.8; text-align: center; }
+.chart-day { cursor: pointer; outline: none; -webkit-tap-highlight-color: transparent; }
+.chart-hit { fill: transparent; }
+.chart-bar { fill: #c8b4db; pointer-events: none; }
+.chart-day:hover .chart-hit { fill: #ece3f355; }
+.chart-day[aria-pressed="true"] .chart-hit { fill: #ece3f388; }
+.chart-day[aria-pressed="true"] .chart-bar { fill: var(--purple); }
+.chart-day:focus-visible .chart-hit { stroke: var(--purple-deep); stroke-width: 2; vector-effect: non-scaling-stroke; }
 .chart-dates { display: flex; justify-content: space-between; color: #9d909f; font-size: .68rem; }
+.chart-help { margin: 18px 0 12px; color: var(--muted); font-size: .72rem; line-height: 1.8; }
+.chart-day-detail { display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 19px 22px; border: 1px solid #e2d5ec; border-radius: 12px; background: #f5eff8; }
+.chart-day-date { color: #826b91; font-size: .76rem; }
+.chart-day-total { display: flex; align-items: baseline; flex-wrap: wrap; gap: 9px; margin: 8px 0 6px; color: var(--purple-deep); }
+.chart-day-total strong { font-size: clamp(1.7rem,3vw,2.2rem); font-weight: 500; letter-spacing: -.04em; font-variant-numeric: tabular-nums; }
+.chart-day-total span, .chart-day-exact { color: #8d789e; font-size: .72rem; }
+.chart-day-nav { display: flex; flex: 0 0 auto; gap: 8px; }
+.chart-day-nav button { width: 42px; min-height: 42px; padding: 8px; border: 1px solid #dbcee5; border-radius: 9px; background: var(--paper); color: var(--purple-deep); font: inherit; cursor: pointer; }
+.chart-day-nav button:hover:not(:disabled) { background: var(--lavender); }
+.chart-day-nav button:disabled { cursor: default; opacity: .35; }
 #usage-table-details { margin-top: 25px; padding-top: 20px; border-top: 1px solid var(--line); }
 #usage-table-details summary { width: fit-content; color: var(--purple-deep); font-size: .78rem; cursor: pointer; }
 .usage-table-wrap { max-height: 330px; overflow: auto; margin-top: 20px; }
@@ -97,6 +114,8 @@
   .activity-stat { padding: 19px 15px; }
   .usage-chart-card { padding: 22px 18px; }
   .chart-heading { align-items: start; flex-direction: column; gap: 16px; }
+  .chart-day-detail { gap: 12px; padding: 17px 15px; }
+  .chart-day-nav { gap: 5px; }
   .usage-sync-note { flex-direction: column; gap: 12px; }
   .usage-section-heading .privacy-label { flex: 0 0 auto; }
 }
