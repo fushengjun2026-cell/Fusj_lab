@@ -9,32 +9,33 @@
 
 ## 更新方式
 
-本机同步程序每 60 秒通过 `codex app-server` 读取 `account/rateLimits/read`，
-获取额度分组、周期、已用比例、重置时间、点数及可用重置次数。
-`account/usage/read` 只在每个北京时间日期首次运行时读取一次，获取累计 Token、
-连续使用天数和每日 Token 记录；电脑休眠时顺延到唤醒后的首次同步。
-尝试日期和成功结果保存在私有本机缓存中，重启后仍遵守每天一次；读取失败或
-缺少字段时保留上次成功值，不把未知数据当作零或清空原有图表，下一天再尝试。
-页面分别显示额度同步时间和每日统计最近成功时间。
-没有返回的项目保持未知，不填入演示数字。
+打开页面和登录只读取云端已保存的结果，不会查询账号。
+点击“刷新数据”才提交一次请求：在线的电脑同时读取 `account/rateLimits/read`
+和 `account/usage/read`，分别获取额度与每日 Token 统计，再把结果返回网页。
+没有点击时，不自动按分钟、按天或在电脑启动时读取账号。
 
-同步程序只上传明确挑选的统计字段，不上传账号 ID、邮箱、授权令牌、提示词或对话。
-Cloudflare 保存最近一条成功同步；网页登录后每 30 秒检查已保存的数据，
-网页刷新不会请求 OpenAI 账号接口。
-电脑关机、休眠、断网、退出 Codex 登录或本地代理不可用时暂停同步。
-超过三分钟没有新记录，网页会明确标为上次同步记录；原额度周期结束后，
-不推算新的剩余额度，等待下一条成功同步。
+网页显示等待电脑、正在读取、完成、部分返回或失败；请求最多等待两分钟。
+电脑休眠、关机、断网时不能处理请求，超时后可重新手动刷新。
+只有正在等待一次手动请求时，网页才轮询云端结果；平时不自动加载数据。
+图表和额度分别显示来源时间。部分数据未返回时保留上次值，不将旧记录标成
+本次成功读取；额度读取失败也不会丢弃已经成功返回的每日统计。
+
+电脑后台只每五秒检查是否有手动刷新请求，没有请求时不访问 OpenAI。
+同一请求只读取一次账号，网络上传失败时重发缓存的结果，不重复读取账号。
+读取失败不自动重试；用户可以再次点击刷新，当天也能立即重新读取。
+
+同步程序仅上传筛选后的统计字段，不上传账号 ID、邮箱、登录令牌、提示词或对话。
 
 ## 私有配置与启动
 
 使用 Node.js 22+、已登录的本机 Codex CLI 和系统 curl。
 默认配置路径：`~/Library/Application Support/FusjLab/codex-usage.json`，权限为 `600`。
-同目录的 `codex-usage.json.cache.json` 保存统计缓存与每日尝试日期，权限同为 `600`，
-不包含登录凭证。请保留它，以免重启程序后重复请求每日统计。
+同目录的 `codex-usage.json.cache.json` 保存统计缓存与待交付的手动刷新结果，权限同为 `600`，
+不包含登录凭证。旧版本的每日尝试日期会被忽略，不再限制手动刷新。
 
-配置字段：`syncUrl`、`syncToken`、`codexPath`、`intervalSeconds`，以及可选 `proxyUrl`。
+配置字段：`syncUrl`、`syncToken`、`codexPath`、`pollSeconds`，以及可选 `proxyUrl`。
 同步密钥由维护者随机生成，与 Cloudflare Secret `USAGE_SYNC_TOKEN` 一致，
-不写入仓库，也不放进网页。该密钥只能上传用量，不能读取用量或修改笔记。
+不写入仓库，也不放进网页。该密钥可领取刷新任务和交付统计结果，不能读取云端统计或修改笔记。
 
 ```sh
 node tools/codex-usage-sync.mjs --once
@@ -42,7 +43,8 @@ node tools/codex-usage-sync.mjs
 node tools/install-usage-agent.mjs
 ```
 
-`--once` 用于首次验证；默认持续运行。`--read-only` 只在本机输出已筛选的统计信息。
+`--once` 只检查和处理一次待办刷新；没有待办时不查询账号。默认持续等待手动请求。
+`--read-only` 是维护者主动读取账号并在本机输出筛选后统计的命令，不会上传。
 管理登录沿用 Note 的会话和服务器密码校验；匿名请求无法读取用量。
 本机通过用户级 LaunchAgent 保持同步进程，登录 macOS 后启动，退出登录后结束。
 安装器将运行所需的脚本复制到 `~/Library/Application Support/FusjLab/runtime/`，
@@ -55,7 +57,10 @@ LaunchAgent 标签为 `com.fusjlab.codex-usage`；运行
 ## 服务与数据
 
 - `GET /api/codex-usage`：需要现有有效管理会话。
-- `PUT /api/codex-usage/sync`：需要独立同步密钥；服务端校验、筛选字段并阻止旧记录覆盖新记录。
+- `POST /api/codex-usage/refresh`：管理会话创建手动刷新请求，进行中的重复请求合并。
+- `POST /api/codex-usage/refresh/claim`：独立同步密钥领取任务，仅返回任务 ID 与交付凭据。
+- `PUT /api/codex-usage/refresh/complete`：独立同步密钥交付结果，任务状态和统计在同一事务保存。
+- `PUT /api/codex-usage/sync`：保留维护用上传接口，不用于后台自动同步。
 - 数据单独保存在 Durable Object 的 `codex_usage` 表，不修改笔记或笔记历史。
 - 不向前端提供额度重置、消费点数、账户登录等操作。
 

@@ -1,6 +1,6 @@
-import { PasswordNotesStore } from './notes-store.js?v=4';
+import { PasswordNotesStore } from './notes-store.js?v=5';
 import { NOTES_API_URL } from './notes-config.js';
-import { normalizeUsage, quotaView } from './usage-data.js?v=2';
+import { normalizeUsage, quotaView } from './usage-data.js?v=3';
 
 const $ = id => document.getElementById(id);
 const el = (tag, className = '', text = '') => { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; };
@@ -9,23 +9,25 @@ try { sessionStorageSafe = sessionStorage; } catch {}
 const store = new PasswordNotesStore(NOTES_API_URL, { storage: sessionStorageSafe });
 let snapshot = null, busy = false, networkError = '', days = 30, generation = 0;
 let selectedDate = null, chartRows = [];
+let refreshState = null, agentSeenAt = null;
 const format = (value, maximumFractionDigits = 1) => value == null ? '—' : new Intl.NumberFormat('zh-CN', { maximumFractionDigits }).format(value);
 const compact = value => value == null ? '—' : value >= 1e8 ? `${format(value / 1e8, 2)} 亿` : value >= 1e4 ? `${format(value / 1e4, 2)} 万` : format(value);
 const dateTime = value => new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Shanghai' }).format(new Date(value));
 function authenticated(value) {
   generation++; busy = false;
+  if (!value) { refreshState = null; agentSeenAt = null; networkError = ''; notice(''); $('refresh-usage').textContent = '刷新数据 ↻'; }
   $('usage-access').hidden = value; $('usage-dashboard').hidden = !value;
   if (!value) { snapshot = null; chartRows = []; selectDay(null); $('quota-grid').replaceChildren(); $('activity-summary').replaceChildren(); $('activity-chart').replaceChildren(); $('chart-dates').replaceChildren(); $('usage-daily-table').replaceChildren(); $('usage-extras').replaceChildren(); $('usage-values').hidden = true; $('sync-time').textContent = '—'; $('activity-caption').textContent = ''; $('activity-updated').textContent = ''; $('usage-plan').textContent = 'Codex'; }
 }
 function notice(text) { $('usage-error').textContent = text; $('usage-error').hidden = !text; }
-function fresh() { return snapshot && Date.now() - Date.parse(snapshot.sampledAt) <= 180000; }
+function fresh() { return snapshot && Date.now() - Date.parse(snapshot.limitsSampledAt) <= 180000; }
 function freshness() {
-  if (!snapshot) { $('sync-status').textContent = '等待本机同步'; $('sync-time').textContent = '尚无同步记录'; return; }
+  const pending = ['pending', 'running'].includes(refreshState?.status);
+  $('sync-status').textContent = networkError ? '连接暂时中断' : pending ? refreshState.status === 'running' ? '正在读取账号最新数据…' : '等待电脑处理刷新…' : refreshState?.status === 'failed' ? '上次刷新未完成' : refreshState?.status === 'partial' ? '部分数据未返回' : refreshState?.status === 'success' ? '手动刷新已完成' : snapshot ? '显示上次保存的记录' : '点击刷新，读取账号用量';
+  $('sync-badge').classList.toggle('is-stale', !!networkError || ['failed', 'partial'].includes(refreshState?.status));
+  if (!snapshot) { $('sync-time').textContent = '尚无成功读取记录'; return; }
   const age = Math.max(0, Math.floor((Date.now() - Date.parse(snapshot.sampledAt)) / 60000));
-  const recent = fresh() && !networkError;
-  $('sync-status').textContent = networkError ? '连接暂时中断' : recent ? '已收到本机最新同步' : '显示上次同步记录';
-  $('sync-badge').classList.toggle('is-stale', !recent);
-  $('sync-time').textContent = `最后同步：${dateTime(snapshot.sampledAt)}（北京时间） · ${age < 1 ? '刚刚' : age < 60 ? `${age} 分钟前` : `${format(age / 60)} 小时前`}`;
+  $('sync-time').textContent = `最近读取：${dateTime(snapshot.sampledAt)}（北京时间） · ${age < 1 ? '刚刚' : age < 60 ? `${age} 分钟前` : `${format(age / 60)} 小时前`}`;
 }
 function countdown(timestamp) {
   if (timestamp == null) return '暂未提供';
@@ -65,7 +67,7 @@ function renderQuotas() {
 }
 function renderActivity() {
   const summary = snapshot.activity?.summary;
-  $('activity-updated').textContent = snapshot.activity?.sampledAt ? `每天更新一次 · 最近成功：${dateTime(snapshot.activity.sampledAt)}（北京时间）` : '每天更新一次 · 等待每日统计';
+  $('activity-updated').textContent = snapshot.activity?.dailySampledAt ? `手动更新 · 明细最近获取：${dateTime(snapshot.activity.dailySampledAt)}（北京时间）` : '手动更新 · 尚未获取每日明细';
   const values = [['累计 Token', compact(summary?.lifetimeTokens), summary?.lifetimeTokens == null ? '账号暂未提供' : `${format(summary.lifetimeTokens)} Token`], ['单日最高 Token', compact(summary?.peakDailyTokens), summary?.peakDailyTokens == null ? '账号暂未提供' : `${format(summary.peakDailyTokens)} Token`], ['当前连续使用', summary?.currentStreakDays == null ? '—' : `${format(summary.currentStreakDays)} 天`, '按账号活动记录统计'], ['最长连续使用', summary?.longestStreakDays == null ? '—' : `${format(summary.longestStreakDays)} 天`, '保持自己的节奏']];
   $('activity-summary').replaceChildren(...values.map(([name, value, help]) => { const item = el('div', 'activity-stat'); item.append(el('span', '', name), el('strong', '', value), el('small', '', help)); return item; }));
   renderChart();
@@ -131,22 +133,54 @@ function renderChart() {
   $('activity-chart').append(svg); $('chart-dates').append(el('span', '', since), el('span', '', latest));
   selectDay(available.some(row => row.date === selectedDate) ? selectedDate : available.at(-1).date, restoreFocus);
 }
-async function refresh() {
+async function refresh(manual = false) {
   if (busy || !store.connected) return;
   const currentGeneration = generation;
   busy = true; $('refresh-usage').disabled = true;
+  $('refresh-usage').textContent = manual ? '刷新中…' : '读取记录…';
   try {
-    const result = await store.readUsage();
-    if (currentGeneration !== generation) return;
-    snapshot = result.snapshot ? normalizeUsage(result.snapshot) : null;
-    networkError = ''; notice(''); $('usage-empty').hidden = !!snapshot; $('usage-values').hidden = !snapshot;
-    if (snapshot) { renderQuotas(); renderActivity(); }
-    freshness();
+    let requestId = null;
+    if (manual) {
+      const requested = await store.refreshUsage();
+      if (currentGeneration !== generation) return;
+      requestId = requested.refresh.id; refreshState = requested.refresh; agentSeenAt = requested.agentSeenAt;
+      networkError = ''; freshness();
+    }
+    const started = Date.now();
+    for (;;) {
+      let result;
+      try { result = await store.readUsage(); }
+      catch (error) {
+        if (currentGeneration !== generation) return;
+        if (error.code !== 'network' || (!requestId && !['pending', 'running'].includes(refreshState?.status)) || Date.now() - started > 125000) throw error;
+        notice('读取刷新结果时网络暂时中断，正在继续等待本次结果，无需重复点击。');
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        if (currentGeneration !== generation || !store.connected) return;
+        continue;
+      }
+      if (currentGeneration !== generation) return;
+      const changed = result.snapshot?.sampledAt !== snapshot?.sampledAt;
+      snapshot = result.snapshot ? normalizeUsage(result.snapshot) : null;
+      refreshState = result.refresh || null; agentSeenAt = result.agentSeenAt;
+      networkError = ''; $('usage-empty').hidden = !!snapshot; $('usage-values').hidden = !snapshot;
+      if (snapshot && changed) { renderQuotas(); renderActivity(); }
+      freshness();
+      if (requestId && refreshState?.id !== requestId) throw new Error('刷新请求已被替换，请查看最新记录或重新刷新。');
+      if (!['pending', 'running'].includes(refreshState?.status)) {
+        notice(['partial', 'failed'].includes(refreshState?.status) ? refreshState.message : ''); break;
+      }
+      $('refresh-usage').textContent = '刷新中…';
+      const online = agentSeenAt && Date.now() - Date.parse(agentSeenAt) < 45000;
+      notice(refreshState.status === 'running' ? '正在从账号读取额度和每日 Token，请稍候。' : online ? '已通知电脑读取最新数据，请稍候。' : '等待电脑响应，请确认同步电脑已开机联网。电脑休眠时无法读取账号。');
+      if (Date.now() - started > 125000) throw new Error('电脑未及时响应，请确认电脑开机联网后再点刷新。');
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      if (currentGeneration !== generation || !store.connected) return;
+    }
   } catch (error) {
     if (currentGeneration !== generation) return;
     if (error.code === 'auth') { authenticated(false); $('usage-login-status').textContent = '登录已过期，请重新输入管理密码。'; }
     else { networkError = error.message; notice(error.message); freshness(); }
-  } finally { if (currentGeneration === generation) { busy = false; $('refresh-usage').disabled = false; } }
+  } finally { if (currentGeneration === generation) { busy = false; $('refresh-usage').disabled = false; $('refresh-usage').textContent = '刷新数据 ↻'; } }
 }
 $('usage-login').addEventListener('submit', async event => {
   event.preventDefault(); $('usage-login-button').disabled = true; $('usage-login-status').textContent = '正在验证……';
@@ -154,12 +188,10 @@ $('usage-login').addEventListener('submit', async event => {
   catch (error) { $('usage-login-status').textContent = error.message; }
   finally { $('usage-login-button').disabled = false; }
 });
-$('refresh-usage').addEventListener('click', refresh);
+$('refresh-usage').addEventListener('click', () => refresh(true));
 $('chart-day-previous').addEventListener('click', () => moveDay(-1));
 $('chart-day-next').addEventListener('click', () => moveDay(1));
 $('usage-logout').addEventListener('click', async () => { authenticated(false); $('usage-password').value = ''; $('usage-login-status').textContent = ''; await store.disconnect(); });
 for (const button of document.querySelectorAll('[data-days]')) button.addEventListener('click', () => { days = Number(button.dataset.days); if (snapshot) renderChart(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refresh(); });
-setInterval(() => { if (!document.hidden) refresh(); }, 30000);
 setInterval(() => { if (snapshot && !document.hidden) { freshness(); renderQuotas(); } }, 60000);
 try { if (await store.restore()) { authenticated(true); await refresh(); } } catch (error) { $('usage-login-status').textContent = error.message; }

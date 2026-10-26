@@ -5,7 +5,7 @@ import { mkdtemp, readFile, writeFile, stat, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { normalizeUsage, usageFromCodex, quotaView, mergeUsageActivity } from '../js/usage-data.js';
-import { DailyUsageCache, activityDay, readUsage } from '../tools/codex-usage-sync.mjs';
+import { UsageCache, processRefresh, readUsage, readUsageResult } from '../tools/codex-usage-sync.mjs';
 import { NotebookService } from '../server/notebook.js';
 
 function sample(now = Date.now()) {
@@ -106,29 +106,78 @@ test('Fresh quota uploads cannot erase previous activity or relabel its timestam
   assert.equal(updated.sampledAt, ratesOnly.sampledAt);
   assert.deepEqual(updated.activity, initial.activity);
 });
-test('Daily activity attempts persist across restarts and failures and reset only on a new Beijing date', async () => {
-  const folder = await mkdtemp(join(tmpdir(), 'fusj-usage-cache-'));
+test('Idle and restarted agents never read the account; failed delivery retries the saved result without reading again', async () => {
+  const folder = await mkdtemp(join(tmpdir(), 'fusj-usage-manual-'));
   try {
-    const path = join(folder, 'cache.json'), beforeMidnight = Date.parse('2026-10-22T15:59:59Z');
-    assert.equal(activityDay(beforeMidnight), '2026-10-22');
-    assert.equal(activityDay(beforeMidnight + 1000), '2026-10-23');
-    const cache = await new DailyUsageCache(path).load();
-    assert.equal(await cache.beginActivityRead(beforeMidnight), true);
-    await cache.remember(sample(beforeMidnight));
-    assert.equal(await cache.beginActivityRead(beforeMidnight + 500), false);
-    const restarted = await new DailyUsageCache(path).load();
-    assert.equal(await restarted.beginActivityRead(beforeMidnight + 500), false);
-    const ratesOnly = sample(beforeMidnight + 500); ratesOnly.activity = null;
-    const saved = await restarted.remember(ratesOnly);
-    assert.equal(saved.activity.sampledAt, new Date(beforeMidnight).toISOString());
-    assert.equal(saved.activity.summary.lifetimeTokens, 1234567);
-    assert.equal(await restarted.beginActivityRead(beforeMidnight + 1000), true);
-    // No successful response follows this attempt: a restart still must not retry it every minute.
-    const failedRestart = await new DailyUsageCache(path).load();
-    assert.equal(await failedRestart.beginActivityRead(beforeMidnight + 61000), false);
+    const path = join(folder, 'cache.json');
+    const cache = await new UsageCache(path).load();
+    let reads = 0, failDelivery = true, pending = null;
+    const request = async (config, endpoint) => {
+      if (endpoint.endsWith('/claim')) { const next = pending; pending = null; return { request: next }; }
+      if (failDelivery) throw new Error('network');
+      return { ok: true };
+    };
+    const read = async () => { reads++; return { status: 'success', snapshot: normalizeUsage(sample()) }; };
+    const options = { request, read };
+    for (let i = 0; i < 5; i++) assert.equal(await processRefresh(cache, {}, options), 'idle');
+    assert.equal(reads, 0);
+    pending = { id: 'first-click', lease: 'first-lease' };
+    await assert.rejects(processRefresh(cache, {}, options), /network/);
+    assert.equal(reads, 1);
+    const restarted = await new UsageCache(path).load();
+    failDelivery = false;
+    assert.equal(await processRefresh(restarted, {}, options), 'success');
+    assert.equal(reads, 1);
+    assert.equal(restarted.pendingResult, null);
+    assert.equal(await processRefresh(restarted, {}, options), 'idle');
+    pending = { id: 'second-click', lease: 'second-lease' };
+    assert.equal(await processRefresh(restarted, {}, options), 'success');
+    assert.equal(reads, 2, 'every new manual click reads again, with no daily gate');
     assert.equal((await stat(path)).mode & 0o777, 0o600);
-    assert.equal(JSON.stringify(failedRestart.snapshot).includes('Authorization'), false);
   } finally { await rm(folder, { recursive: true, force: true }); }
+});
+test('Manual refresh queue requires owner authorization, coalesces active clicks and only allows one agent to claim it', async () => {
+  const f = fixture(), owner = await f.login(), token = f.env.USAGE_SYNC_TOKEN;
+  assert.equal((await f.call('codex-usage/refresh', 'POST')).status, 401);
+  assert.equal((await f.call('codex-usage/refresh', 'POST', undefined, token)).status, 401);
+  assert.equal((await f.call('codex-usage/refresh/claim', 'POST', undefined, owner)).status, 401);
+  const created = await (await f.call('codex-usage/refresh', 'POST', undefined, owner)).json();
+  const repeated = await (await f.call('codex-usage/refresh', 'POST', undefined, owner)).json();
+  assert.equal(created.refresh.id, repeated.refresh.id);
+  f.restart();
+  const claimed = await (await f.call('codex-usage/refresh/claim', 'POST', undefined, token)).json();
+  assert.deepEqual(Object.keys(claimed.request).sort(), ['id', 'lease']);
+  assert.equal(claimed.request.id, created.refresh.id);
+  assert.equal((await (await f.call('codex-usage/refresh/claim', 'POST', undefined, token)).json()).request, null);
+  const privateRead = await (await f.call('codex-usage', 'GET', undefined, owner)).json();
+  assert.equal(privateRead.refresh.lease, undefined);
+  const result = { ...claimed.request, status: 'success', snapshot: sample(f.now) };
+  assert.equal((await f.call('codex-usage/refresh/complete', 'PUT', { ...result, lease: 'forged' }, token)).status, 409);
+  assert.equal((await f.call('codex-usage/refresh/complete', 'PUT', result, owner)).status, 401);
+  assert.equal((await f.call('codex-usage/refresh/complete', 'PUT', result, token)).status, 200);
+  assert.equal((await f.call('codex-usage/refresh/complete', 'PUT', result, token)).status, 200, 'lost completion receipts can safely be retried');
+  const completed = await (await f.call('codex-usage', 'GET', undefined, owner)).json();
+  assert.equal(completed.refresh.status, 'success');
+  assert.equal(completed.snapshot.activity.daily[0].tokens, 0);
+  const next = await (await f.call('codex-usage/refresh', 'POST', undefined, owner)).json();
+  assert.notEqual(next.refresh.id, completed.refresh.id);
+});
+test('Offline requests expire visibly and failed reads preserve old statistics and timestamps', async () => {
+  const f = fixture(), owner = await f.login(), token = f.env.USAGE_SYNC_TOKEN;
+  await f.call('codex-usage/sync', 'PUT', sample(f.now), token);
+  const before = (await (await f.call('codex-usage', 'GET', undefined, owner)).json()).snapshot;
+  await f.call('codex-usage/refresh', 'POST', undefined, owner);
+  f.advance(120001);
+  let result = await (await f.call('codex-usage', 'GET', undefined, owner)).json();
+  assert.equal(result.refresh.status, 'failed'); assert.match(result.refresh.message, /电脑/);
+  assert.deepEqual(result.snapshot, before);
+  assert.equal((await (await f.call('codex-usage/refresh/claim', 'POST', undefined, token)).json()).request, null);
+  await f.call('codex-usage/refresh', 'POST', undefined, owner);
+  const claim = await (await f.call('codex-usage/refresh/claim', 'POST', undefined, token)).json();
+  await f.call('codex-usage/refresh/complete', 'PUT', { ...claim.request, status: 'failed' }, token);
+  result = await (await f.call('codex-usage', 'GET', undefined, owner)).json();
+  assert.deepEqual(result.snapshot, before);
+  assert.match(result.refresh.message, /账号接口/);
 });
 test('Quota-only cycles send no account/usage/read request; daily cycles explicitly opt in', async () => {
   const folder = await mkdtemp(join(tmpdir(), 'fusj-usage-reader-'));
@@ -141,5 +190,18 @@ test('Quota-only cycles send no account/usage/read request; daily cycles explici
     const full = await readUsage(script, { includeActivity: true });
     assert.equal(full.activity.daily[0].tokens, 10000);
     assert.equal((await readFile(log, 'utf8')).split('\n').filter(method => method === 'account/usage/read').length, 1);
+    const source = await readFile(script, 'utf8');
+    const previous = normalizeUsage(sample(Date.now() - 3600000));
+    const fail = method => source.replace("const result=request.method===", `if(request.method===${JSON.stringify(method)}){process.stdout.write(JSON.stringify({id:request.id,error:{code:-32603}})+'\\n');continue;}\n const result=request.method===`);
+    await writeFile(script, fail('account/rateLimits/read'));
+    const dailyOnly = await readUsageResult(script, { previous });
+    assert.equal(dailyOnly.status, 'partial'); assert.equal(dailyOnly.reason, 'rates');
+    assert.equal(dailyOnly.snapshot.limitsSampledAt, previous.limitsSampledAt);
+    assert(dailyOnly.snapshot.activity.dailySampledAt > previous.activity.dailySampledAt);
+    await writeFile(script, fail('account/usage/read'));
+    const quotaOnly = await readUsageResult(script, { previous });
+    assert.equal(quotaOnly.status, 'partial'); assert.equal(quotaOnly.reason, 'daily');
+    assert.equal(quotaOnly.snapshot.activity.dailySampledAt, previous.activity.dailySampledAt);
+    assert(quotaOnly.snapshot.limitsSampledAt > previous.limitsSampledAt);
   } finally { await rm(folder, { recursive: true, force: true }); }
 });

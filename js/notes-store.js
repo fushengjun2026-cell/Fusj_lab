@@ -85,6 +85,10 @@ export class PasswordNotesStore {
     if (!this.connected) throw new NotesError('请先输入管理密码。', 'auth');
     return this.#api('/api/codex-usage');
   }
+  async refreshUsage() {
+    if (!this.connected) throw new NotesError('请先输入管理密码。', 'auth');
+    return this.#api('/api/codex-usage/refresh', { method: 'POST' });
+  }
   async save(note, expected = null) {
     const validated = validateDocument({ version: 1, notes: [note] }).notes[0];
     return this.#mutate(validated.id, validated, expected, 'PUT');

@@ -107,6 +107,12 @@ export class NotebookService {
     return json({ token, expiresAt, ...this.snapshot() });
   }
 
+  async authorizeUsageSync(request) {
+    if (!this.env.USAGE_SYNC_TOKEN) throw new NotesError('用量同步尚未完成设置。', 'setup');
+    const token = request.headers.get('authorization')?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
+    if (!token || !equal(await hash(token), await hash(this.env.USAGE_SYNC_TOKEN))) throw new NotesError('用量同步授权无效。', 'auth');
+  }
+
   mutate(value, remove) {
     if (!value || typeof value !== 'object') throw new NotesError('笔记数据格式不正确。', 'format');
     const expected = value.expected == null ? null : validateDocument({ version: 1, notes: [value.expected] }).notes[0];
@@ -140,10 +146,17 @@ export class NotebookService {
         return json(this.usage.read());
       }
       if (path === '/api/codex-usage/sync' && request.method === 'PUT') {
-        if (!this.env.USAGE_SYNC_TOKEN) throw new NotesError('用量同步尚未完成设置。', 'setup');
-        const token = request.headers.get('authorization')?.match(/^Bearer ([a-f0-9]{64})$/)?.[1];
-        if (!token || !equal(await hash(token), await hash(this.env.USAGE_SYNC_TOKEN))) throw new NotesError('用量同步授权无效。', 'auth');
+        await this.authorizeUsageSync(request);
         return json(this.usage.save(await body(request)));
+      }
+      if (path === '/api/codex-usage/refresh' && request.method === 'POST') {
+        await this.authorize(request); return json(this.usage.requestRefresh());
+      }
+      if (path === '/api/codex-usage/refresh/claim' && request.method === 'POST') {
+        await this.authorizeUsageSync(request); return json(this.usage.claimRefresh());
+      }
+      if (path === '/api/codex-usage/refresh/complete' && request.method === 'PUT') {
+        await this.authorizeUsageSync(request); return json(this.usage.completeRefresh(await body(request)));
       }
       if (path === '/api/notes' && request.method === 'GET') return json(this.snapshot());
       if (path === '/api/session' && request.method === 'POST') return await this.login(request);
