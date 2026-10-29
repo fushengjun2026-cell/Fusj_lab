@@ -1,6 +1,6 @@
 # Codex 个人用量
 
-入口：Lab 第一张卡片，页面为 `usage.html`。输入现有笔记管理密码后可见。
+入口：Lab 第一张卡片，页面为 `usage.html`。打开即可查看，无需密码或登录；手动刷新也无需密码。
 额度数据与账户每日 Token 活动分别显示，不把 Token 数换算成剩余额度。
 
 每日柱状图支持点击或触摸选择日期，显示当日用量：大数使用“万 / 亿 Token”，
@@ -9,7 +9,7 @@
 
 ## 更新方式
 
-打开页面和登录只读取云端已保存的结果，不会查询账号。
+打开页面只读取云端已保存的结果，不会查询账号。
 点击“刷新数据”才提交一次请求：在线的电脑同时读取 `account/rateLimits/read`
 和 `account/usage/read`，分别获取额度与每日 Token 统计，再把结果返回网页。
 没有点击时，不自动按分钟、按天或在电脑启动时读取账号。
@@ -21,6 +21,7 @@
 本次成功读取；额度读取失败也不会丢弃已经成功返回的每日统计。
 
 电脑后台只每五秒检查是否有手动刷新请求，没有请求时不访问 OpenAI。
+进行中的重复刷新会合并，每分钟最多新建六次请求。
 同一请求只读取一次账号，网络上传失败时重发缓存的结果，不重复读取账号。
 读取失败不自动重试；用户可以再次点击刷新，当天也能立即重新读取。
 
@@ -35,7 +36,7 @@
 
 配置字段：`syncUrl`、`syncToken`、`codexPath`、`pollSeconds`，以及可选 `proxyUrl`。
 同步密钥由维护者随机生成，与 Cloudflare Secret `USAGE_SYNC_TOKEN` 一致，
-不写入仓库，也不放进网页。该密钥可领取刷新任务和交付统计结果，不能读取云端统计或修改笔记。
+不写入仓库，也不放进网页。该密钥可领取刷新任务和交付统计结果，不能修改笔记；统计读取现已公开。
 
 ```sh
 node tools/codex-usage-sync.mjs --once
@@ -45,7 +46,7 @@ node tools/install-usage-agent.mjs
 
 `--once` 只检查和处理一次待办刷新；没有待办时不查询账号。默认持续等待手动请求。
 `--read-only` 是维护者主动读取账号并在本机输出筛选后统计的命令，不会上传。
-管理登录沿用 Note 的会话和服务器密码校验；匿名请求无法读取用量。
+用量页面不读取或保存管理会话；后台上传和任务交付仍验证独立同步密钥。
 本机通过用户级 LaunchAgent 保持同步进程，登录 macOS 后启动，退出登录后结束。
 安装器将运行所需的脚本复制到 `~/Library/Application Support/FusjLab/runtime/`，
 后台运行不依赖仓库目录；更新同步脚本后，重新运行安装器使后台版本生效。
@@ -56,15 +57,15 @@ LaunchAgent 标签为 `com.fusjlab.codex-usage`；运行
 
 ## 服务与数据
 
-- `GET /api/codex-usage`：需要现有有效管理会话。
-- `POST /api/codex-usage/refresh`：管理会话创建手动刷新请求，进行中的重复请求合并。
+- `GET /api/codex-usage`：公开读取筛选后的统计及刷新状态，不包含任务交付凭据。
+- `POST /api/codex-usage/refresh`：公开创建手动刷新请求，进行中的重复请求合并，每分钟最多六次新请求。
 - `POST /api/codex-usage/refresh/claim`：独立同步密钥领取任务，仅返回任务 ID 与交付凭据。
 - `PUT /api/codex-usage/refresh/complete`：独立同步密钥交付结果，任务状态和统计在同一事务保存。
 - `PUT /api/codex-usage/sync`：保留维护用上传接口，不用于后台自动同步。
 - 数据单独保存在 Durable Object 的 `codex_usage` 表，不修改笔记或笔记历史。
 - 不向前端提供额度重置、消费点数、账户登录等操作。
 
-验证包含私有读取、上传与阅读权限隔离、过期会话、重启持久化、统计数据校验、
+验证包含公开读取、上传凭据保护、笔记管理权限、重启持久化、统计数据校验、
 乱序更新，以及周期结束时保留未知状态。运行 `pnpm test`。
 
 官方协议：[Codex App Server](https://learn.chatgpt.com/docs/app-server#6-rate-limits-chatgpt)。

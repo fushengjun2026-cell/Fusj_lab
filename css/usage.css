@@ -1,16 +1,7 @@
 .usage-page [hidden] { display: none !important; }
 .usage-hero { padding-bottom: 64px; }
 .usage-content { padding-bottom: 80px; }
-.usage-access { display: grid; grid-template-columns: 1.15fr .85fr; align-items: center; gap: 80px; padding: 52px; border: 1px solid var(--line); border-radius: 24px; background: var(--paper); box-shadow: var(--shadow); }
-.usage-access .section-label { margin-bottom: 23px; font-size: .68rem; }
-.usage-access h2 { font-family: inherit; font-size: clamp(1.9rem,3vw,2.8rem); font-weight: 500; line-height: 1.4; letter-spacing: -.035em; }
-.usage-access p:not(.section-label) { color: var(--muted); font-size: .94rem; line-height: 1.9; }
 .privacy-label { display: inline-flex; padding: 8px 12px; border: 1px solid #dfd3e8; border-radius: 8px; color: var(--purple-deep); background: #f1eaf6; font-size: .75rem; font-weight: 600; }
-#usage-login { display: grid; gap: 13px; }
-#usage-login label { color: var(--muted); font-size: .84rem; }
-#usage-password { width: 100%; min-height: 52px; padding: 12px 15px; border: 1px solid #ded2c4; border-radius: 10px; background: #fcfaf5; color: var(--text); font: inherit; }
-#usage-login-button { margin-top: 4px; }
-.usage-form-status { min-height: 24px; margin: 0; color: #9a5b61 !important; font-size: .83rem !important; }
 .usage-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding: 21px 0 28px; border-bottom: 1px solid var(--line); }
 .sync-badge { display: inline-flex; align-items: center; gap: 8px; color: #637052; font-size: .85rem; font-weight: 600; }
 .sync-badge i { width: 7px; height: 7px; border-radius: 50%; background: #98a17e; }
@@ -20,7 +11,6 @@
 .usage-actions { display: flex; align-items: center; gap: 22px; }
 .usage-button { min-height: 42px; padding: 9px 16px; border: 1px solid #dbcee5; border-radius: 10px; background: var(--paper); color: var(--purple-deep); font: inherit; font-size: .8rem; cursor: pointer; }
 .usage-button:hover { background: var(--lavender); }
-.usage-link { min-height: 42px; padding: 8px 0; border: 0; background: transparent; color: var(--muted); font: inherit; font-size: .8rem; cursor: pointer; }
 .usage-page button:disabled { cursor: wait; opacity: .6; }
 .usage-notice { margin: 20px 0; padding: 14px 18px; border: 1px solid #e5d7ba; border-radius: 10px; color: #896e46; background: #f7edd8; font-size: .85rem; line-height: 1.8; }
 .usage-empty { padding: 76px 24px; text-align: center; }
@@ -95,17 +85,14 @@
 .usage-sync-note > span { flex: 0 0 auto; color: #8d7b99; font-size: .74rem; }
 .usage-sync-note p { margin: 0; color: var(--muted); font-size: .75rem; line-height: 1.8; }
 @media (max-width: 800px) {
-  .usage-access { gap: 40px; padding: 32px; }
   .activity-summary { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .quota-card { padding: 24px; }
 }
 @media (max-width: 580px) {
-  .usage-access { grid-template-columns: 1fr; gap: 32px; padding: 27px 23px; }
   .usage-hero { padding-bottom: 44px; }
   .usage-toolbar { align-items: start; gap: 14px; }
   .usage-actions { flex-direction: column; align-items: end; gap: 3px; }
   .usage-button { padding-inline: 12px; }
-  .usage-link { min-height: 33px; }
   .quota-grid { grid-template-columns: 1fr; gap: 15px; }
   .quota-number strong { font-size: 4.4rem; }
   .usage-section-heading { margin-top: 34px; }

@@ -50,6 +50,10 @@ export class CodexUsage {
     return this.storage.transactionSync(() => {
       const control = this.control();
       if (!['pending', 'running'].includes(control.refresh?.status)) {
+        const window = control.refreshWindow;
+        if (!window || this.now() - window.starts >= 60000) control.refreshWindow = { starts: this.now(), count: 0 };
+        if (control.refreshWindow.count >= 6) throw new NotesError('刷新较频繁，请稍等片刻再试。', 'rate');
+        control.refreshWindow.count++;
         control.refresh = { id: crypto.randomUUID(), status: 'pending', requestedAt: new Date(this.now()).toISOString(), expiresAt: new Date(this.now() + 120000).toISOString(), startedAt: null, finishedAt: null, message: null };
         this.persistControl(control);
       }
@@ -68,7 +72,7 @@ export class CodexUsage {
         request = { id: control.refresh.id, lease: control.refresh.lease };
       }
       this.persistControl(control);
-      // The local credential can only claim a refresh; it cannot read account statistics.
+      // Return only the task ID and delivery credential to the local reader.
       return { request };
     });
   }

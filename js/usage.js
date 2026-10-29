@@ -1,23 +1,25 @@
-import { PasswordNotesStore } from './notes-store.js?v=5';
 import { NOTES_API_URL } from './notes-config.js';
 import { normalizeUsage, quotaView } from './usage-data.js?v=3';
 
 const $ = id => document.getElementById(id);
 const el = (tag, className = '', text = '') => { const node = document.createElement(tag); node.className = className; node.textContent = text; return node; };
-let sessionStorageSafe = null;
-try { sessionStorageSafe = sessionStorage; } catch {}
-const store = new PasswordNotesStore(NOTES_API_URL, { storage: sessionStorageSafe });
-let snapshot = null, busy = false, networkError = '', days = 30, generation = 0;
+let snapshot = null, busy = false, networkError = '', days = 30;
 let selectedDate = null, chartRows = [];
 let refreshState = null, agentSeenAt = null;
 const format = (value, maximumFractionDigits = 1) => value == null ? '—' : new Intl.NumberFormat('zh-CN', { maximumFractionDigits }).format(value);
 const compact = value => value == null ? '—' : value >= 1e8 ? `${format(value / 1e8, 2)} 亿` : value >= 1e4 ? `${format(value / 1e4, 2)} 万` : format(value);
 const dateTime = value => new Intl.DateTimeFormat('zh-CN', { month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false, timeZone: 'Asia/Shanghai' }).format(new Date(value));
-function authenticated(value) {
-  generation++; busy = false;
-  if (!value) { refreshState = null; agentSeenAt = null; networkError = ''; notice(''); $('refresh-usage').textContent = '刷新数据 ↻'; }
-  $('usage-access').hidden = value; $('usage-dashboard').hidden = !value;
-  if (!value) { snapshot = null; chartRows = []; selectDay(null); $('quota-grid').replaceChildren(); $('activity-summary').replaceChildren(); $('activity-chart').replaceChildren(); $('chart-dates').replaceChildren(); $('usage-daily-table').replaceChildren(); $('usage-extras').replaceChildren(); $('usage-values').hidden = true; $('sync-time').textContent = '—'; $('activity-caption').textContent = ''; $('activity-updated').textContent = ''; $('usage-plan').textContent = 'Codex'; }
+async function usageRequest(path = '/api/codex-usage', method = 'GET') {
+  const controller = new AbortController(), timeout = setTimeout(() => controller.abort(), 15000);
+  try {
+    const response = await fetch(`${NOTES_API_URL}${path}`, { method, signal: controller.signal, cache: 'no-store', credentials: 'omit', referrerPolicy: 'no-referrer', redirect: 'error' });
+    const result = await response.json();
+    if (!response.ok) throw Object.assign(new Error(result.message || '暂时无法读取用量，请稍后重试。'), { code: result.code || 'network' });
+    return result;
+  } catch (error) {
+    if (typeof error.code === 'string') throw error;
+    throw Object.assign(new Error('连接暂时失败，请检查网络后重试。'), { code: 'network' });
+  } finally { clearTimeout(timeout); }
 }
 function notice(text) { $('usage-error').textContent = text; $('usage-error').hidden = !text; }
 function fresh() { return snapshot && Date.now() - Date.parse(snapshot.limitsSampledAt) <= 180000; }
@@ -134,31 +136,26 @@ function renderChart() {
   selectDay(available.some(row => row.date === selectedDate) ? selectedDate : available.at(-1).date, restoreFocus);
 }
 async function refresh(manual = false) {
-  if (busy || !store.connected) return;
-  const currentGeneration = generation;
+  if (busy) return;
   busy = true; $('refresh-usage').disabled = true;
   $('refresh-usage').textContent = manual ? '刷新中…' : '读取记录…';
   try {
     let requestId = null;
     if (manual) {
-      const requested = await store.refreshUsage();
-      if (currentGeneration !== generation) return;
+      const requested = await usageRequest('/api/codex-usage/refresh', 'POST');
       requestId = requested.refresh.id; refreshState = requested.refresh; agentSeenAt = requested.agentSeenAt;
       networkError = ''; freshness();
     }
     const started = Date.now();
     for (;;) {
       let result;
-      try { result = await store.readUsage(); }
+      try { result = await usageRequest(); }
       catch (error) {
-        if (currentGeneration !== generation) return;
         if (error.code !== 'network' || (!requestId && !['pending', 'running'].includes(refreshState?.status)) || Date.now() - started > 125000) throw error;
         notice('读取刷新结果时网络暂时中断，正在继续等待本次结果，无需重复点击。');
         await new Promise(resolve => setTimeout(resolve, 2000));
-        if (currentGeneration !== generation || !store.connected) return;
         continue;
       }
-      if (currentGeneration !== generation) return;
       const changed = result.snapshot?.sampledAt !== snapshot?.sampledAt;
       snapshot = result.snapshot ? normalizeUsage(result.snapshot) : null;
       refreshState = result.refresh || null; agentSeenAt = result.agentSeenAt;
@@ -174,24 +171,14 @@ async function refresh(manual = false) {
       notice(refreshState.status === 'running' ? '正在从账号读取额度和每日 Token，请稍候。' : online ? '已通知电脑读取最新数据，请稍候。' : '等待电脑响应，请确认同步电脑已开机联网。电脑休眠时无法读取账号。');
       if (Date.now() - started > 125000) throw new Error('电脑未及时响应，请确认电脑开机联网后再点刷新。');
       await new Promise(resolve => setTimeout(resolve, 2000));
-      if (currentGeneration !== generation || !store.connected) return;
     }
   } catch (error) {
-    if (currentGeneration !== generation) return;
-    if (error.code === 'auth') { authenticated(false); $('usage-login-status').textContent = '登录已过期，请重新输入管理密码。'; }
-    else { networkError = error.message; notice(error.message); freshness(); }
-  } finally { if (currentGeneration === generation) { busy = false; $('refresh-usage').disabled = false; $('refresh-usage').textContent = '刷新数据 ↻'; } }
+    networkError = error.message; notice(error.message); freshness();
+  } finally { busy = false; $('refresh-usage').disabled = false; $('refresh-usage').textContent = '刷新数据 ↻'; }
 }
-$('usage-login').addEventListener('submit', async event => {
-  event.preventDefault(); $('usage-login-button').disabled = true; $('usage-login-status').textContent = '正在验证……';
-  try { await store.connect($('usage-password').value); $('usage-password').value = ''; $('usage-login-status').textContent = ''; authenticated(true); await refresh(); }
-  catch (error) { $('usage-login-status').textContent = error.message; }
-  finally { $('usage-login-button').disabled = false; }
-});
 $('refresh-usage').addEventListener('click', () => refresh(true));
 $('chart-day-previous').addEventListener('click', () => moveDay(-1));
 $('chart-day-next').addEventListener('click', () => moveDay(1));
-$('usage-logout').addEventListener('click', async () => { authenticated(false); $('usage-password').value = ''; $('usage-login-status').textContent = ''; await store.disconnect(); });
 for (const button of document.querySelectorAll('[data-days]')) button.addEventListener('click', () => { days = Number(button.dataset.days); if (snapshot) renderChart(); });
 setInterval(() => { if (snapshot && !document.hidden) { freshness(); renderQuotas(); } }, 60000);
-try { if (await store.restore()) { authenticated(true); await refresh(); } } catch (error) { $('usage-login-status').textContent = error.message; }
+await refresh();

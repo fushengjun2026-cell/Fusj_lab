@@ -11,19 +11,15 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="stylesheet" href="css/site.css?v=7">
-  <link rel="stylesheet" href="css/usage.css?v=2">
+  <link rel="stylesheet" href="css/usage.css?v=3">
 </head>
 <body data-page="lab" class="usage-page">
   <header class="site-header"><a class="brand" href="index.html" aria-label="Fushengjun home"><img src="logo.svg" alt="F logo"></a><button class="menu-toggle" type="button" aria-expanded="false" aria-controls="primary-navigation">Menu</button><nav id="primary-navigation" class="nav-links" aria-label="Primary navigation"><a data-nav="about" href="about.html">About</a><a data-nav="note" href="note.html">Note</a><a data-nav="projects" href="projects.html">Projects</a><a data-nav="lab" href="lab.html">Lab</a><a data-nav="contact" href="contact.html">Contact</a></nav></header>
   <main>
     <section class="page-hero section usage-hero"><p class="eyebrow"><a href="lab.html">Lab</a> / Personal dashboard</p><h1>A little<br><span>headroom.</span></h1><p class="hero-copy">看看剩下的额度，也看看一路积累的工作。<br>我的 Codex 用量与工作节奏。</p></section>
     <section class="section usage-content" aria-label="个人 Codex 用量">
-      <div id="usage-access" class="usage-access">
-        <div><p class="section-label">A private working space</p><h2>给自己的<br>一小块仪表盘。</h2><p>用现有的笔记管理密码，<br>查看剩余额度、重置时间和每日用量。</p><span class="privacy-label">管理密码验证后可见</span></div>
-        <form id="usage-login"><label for="usage-password">管理密码</label><input id="usage-password" type="password" name="password" autocomplete="current-password" required maxlength="256" placeholder="输入管理密码"><button class="glass-button" id="usage-login-button" type="submit">查看用量 <span>↗</span></button><p id="usage-login-status" class="usage-form-status" role="status"></p></form>
-      </div>
-      <div id="usage-dashboard" hidden>
-        <div class="usage-toolbar"><div><span class="sync-badge" id="sync-badge"><i aria-hidden="true"></i><span id="sync-status">正在读取用量</span></span><p id="sync-time">—</p></div><div class="usage-actions"><button id="refresh-usage" class="usage-button" type="button">刷新数据 ↻</button><button id="usage-logout" class="usage-link" type="button">退出查看</button></div></div>
+      <div id="usage-dashboard">
+        <div class="usage-toolbar"><div><span class="sync-badge" id="sync-badge"><i aria-hidden="true"></i><span id="sync-status">正在读取用量</span></span><p id="sync-time">—</p></div><div class="usage-actions"><button id="refresh-usage" class="usage-button" type="button">刷新数据 ↻</button></div></div>
         <p id="usage-error" class="usage-notice" role="status" hidden></p>
         <div id="usage-empty" class="usage-empty" hidden><h2>等待第一条用量记录。</h2><p>点击“刷新数据”，由在线的电脑读取账号最新额度和每日用量。</p></div>
         <div id="usage-values" hidden>
@@ -40,6 +36,6 @@
   </main>
   <footer class="site-footer"><span>© 2026 Fushengjun</span><span class="footer-status"><i></i> 给专注留一点余地</span><a href="lab.html">返回 Lab ↗</a></footer>
   <script src="js/site.js?v=3"></script>
-  <script type="module" src="js/usage.js?v=4"></script>
+  <script type="module" src="js/usage.js?v=5"></script>
 </body>
 </html>

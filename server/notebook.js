@@ -142,7 +142,6 @@ export class NotebookService {
     try {
       const path = new URL(request.url).pathname.replace(/\/$/, '');
       if (path === '/api/codex-usage' && request.method === 'GET') {
-        await this.authorize(request);
         return json(this.usage.read());
       }
       if (path === '/api/codex-usage/sync' && request.method === 'PUT') {
@@ -150,7 +149,7 @@ export class NotebookService {
         return json(this.usage.save(await body(request)));
       }
       if (path === '/api/codex-usage/refresh' && request.method === 'POST') {
-        await this.authorize(request); return json(this.usage.requestRefresh());
+        return json(this.usage.requestRefresh());
       }
       if (path === '/api/codex-usage/refresh/claim' && request.method === 'POST') {
         await this.authorizeUsageSync(request); return json(this.usage.claimRefresh());

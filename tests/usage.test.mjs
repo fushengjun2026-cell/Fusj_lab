@@ -47,10 +47,10 @@ test('Malformed numbers, invalid dates, duplicate buckets and repeated dates are
   const badDate = structuredClone(original); badDate.activity.daily[0].date = '2026-02-30'; assert.throws(() => normalizeUsage(badDate));
   const duplicateDay = structuredClone(original); duplicateDay.activity.daily.push(duplicateDay.activity.daily[0]); assert.throws(() => normalizeUsage(duplicateDay));
 });
-test('Usage is private; management sessions and ingest credentials have separate read and write capabilities', async () => {
+test('Usage reading is public while uploads and note management still require their credentials', async () => {
   const f = fixture(), owner = await f.login();
-  assert.equal((await f.call('codex-usage')).status, 401);
-  assert.equal((await f.call('codex-usage', 'GET', undefined, f.env.USAGE_SYNC_TOKEN)).status, 401);
+  assert.equal((await f.call('codex-usage')).status, 200);
+  assert.equal((await f.call('codex-usage', 'GET', undefined, f.env.USAGE_SYNC_TOKEN)).status, 200);
   assert.equal((await f.call('codex-usage/sync', 'PUT', sample(f.now), owner)).status, 401);
   assert.equal((await f.call('codex-usage/sync', 'PUT', sample(f.now), 'b'.repeat(64))).status, 401);
   assert.equal((await f.call('codex-usage/sync', 'PUT', sample(f.now), f.env.USAGE_SYNC_TOKEN)).status, 200);
@@ -70,14 +70,16 @@ test('Malformed, late and impossible-clock updates leave the latest good snapsho
   assert.equal((await f.call('codex-usage/sync', 'PUT', sample(f.now + 180000), token)).status, 400);
   assert.deepEqual(await (await f.call('codex-usage', 'GET', undefined, owner)).json(), before);
 });
-test('Missing sync setup fails closed and expired or logged-out management sessions cannot read usage', async () => {
+test('Public usage viewing does not depend on a Note session; upload setup and Note sessions remain protected', async () => {
   const f = fixture(), owner = await f.login(); delete f.env.USAGE_SYNC_TOKEN;
   assert.equal((await f.call('codex-usage/sync', 'PUT', sample(f.now), 'a'.repeat(64))).status, 503);
   f.advance(86400001);
-  assert.equal((await f.call('codex-usage', 'GET', undefined, owner)).status, 401);
+  assert.equal((await f.call('codex-usage', 'GET', undefined, owner)).status, 200);
+  assert.equal((await f.call('session', 'GET', undefined, owner)).status, 401);
   const renewed = await f.login();
   await f.call('session', 'DELETE', undefined, renewed);
-  assert.equal((await f.call('codex-usage', 'GET', undefined, renewed)).status, 401);
+  assert.equal((await f.call('codex-usage', 'GET', undefined, renewed)).status, 200);
+  assert.equal((await f.call('session', 'GET', undefined, renewed)).status, 401);
 });
 test('Partial or absent activity keeps known daily values, zeros, summary fields and the last successful timestamp', () => {
   const now = Date.now(), previous = normalizeUsage(sample(now)).activity;
@@ -136,10 +138,11 @@ test('Idle and restarted agents never read the account; failed delivery retries 
     assert.equal((await stat(path)).mode & 0o777, 0o600);
   } finally { await rm(folder, { recursive: true, force: true }); }
 });
-test('Manual refresh queue requires owner authorization, coalesces active clicks and only allows one agent to claim it', async () => {
+test('Public manual refresh coalesces clicks while claiming and completion still require the local credential', async () => {
   const f = fixture(), owner = await f.login(), token = f.env.USAGE_SYNC_TOKEN;
-  assert.equal((await f.call('codex-usage/refresh', 'POST')).status, 401);
-  assert.equal((await f.call('codex-usage/refresh', 'POST', undefined, token)).status, 401);
+  assert.equal((await f.call('codex-usage/refresh', 'POST')).status, 200);
+  assert.equal((await f.call('codex-usage/refresh/claim', 'POST')).status, 401);
+  assert.equal((await f.call('codex-usage/refresh', 'POST', undefined, token)).status, 200);
   assert.equal((await f.call('codex-usage/refresh/claim', 'POST', undefined, owner)).status, 401);
   const created = await (await f.call('codex-usage/refresh', 'POST', undefined, owner)).json();
   const repeated = await (await f.call('codex-usage/refresh', 'POST', undefined, owner)).json();
@@ -149,8 +152,8 @@ test('Manual refresh queue requires owner authorization, coalesces active clicks
   assert.deepEqual(Object.keys(claimed.request).sort(), ['id', 'lease']);
   assert.equal(claimed.request.id, created.refresh.id);
   assert.equal((await (await f.call('codex-usage/refresh/claim', 'POST', undefined, token)).json()).request, null);
-  const privateRead = await (await f.call('codex-usage', 'GET', undefined, owner)).json();
-  assert.equal(privateRead.refresh.lease, undefined);
+  const publicRead = await (await f.call('codex-usage')).json();
+  assert.equal(publicRead.refresh.lease, undefined);
   const result = { ...claimed.request, status: 'success', snapshot: sample(f.now) };
   assert.equal((await f.call('codex-usage/refresh/complete', 'PUT', { ...result, lease: 'forged' }, token)).status, 409);
   assert.equal((await f.call('codex-usage/refresh/complete', 'PUT', result, owner)).status, 401);
@@ -204,4 +207,19 @@ test('Quota-only cycles send no account/usage/read request; daily cycles explici
     assert.equal(quotaOnly.snapshot.activity.dailySampledAt, previous.activity.dailySampledAt);
     assert(quotaOnly.snapshot.limitsSampledAt > previous.limitsSampledAt);
   } finally { await rm(folder, { recursive: true, force: true }); }
+});
+
+test('Public refresh has a bounded request rate and active requests do not consume more slots', async () => {
+  const f = fixture(), token = f.env.USAGE_SYNC_TOKEN;
+  for (let i = 0; i < 6; i++) {
+    assert.equal((await f.call('codex-usage/refresh', 'POST')).status, 200);
+    for (let repeat = 0; repeat < 3; repeat++) assert.equal((await f.call('codex-usage/refresh', 'POST')).status, 200);
+    const claim = await (await f.call('codex-usage/refresh/claim', 'POST', undefined, token)).json();
+    assert.equal((await f.call('codex-usage/refresh/complete', 'PUT', { ...claim.request, status: 'failed' }, token)).status, 200);
+  }
+  assert.equal((await f.call('codex-usage/refresh', 'POST')).status, 429);
+  assert.equal((await f.call('codex-usage')).status, 200);
+  assert(await f.login(), 'public refresh requests must not consume Note login attempts');
+  f.advance(60001);
+  assert.equal((await f.call('codex-usage/refresh', 'POST')).status, 200);
 });
