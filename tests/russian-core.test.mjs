@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { ROOM_KEY, RoomRepository, parsePassage, validateLesson, validateState, normalizeRussian, speechText, transliterate, setProgress, progressStatus, compareRecitation } from '../js/russian-core.js';
 import { STARTER_LESSONS } from '../js/russian-lessons.js';
+import { ADDED_LESSONS } from '../js/russian-new-lesson.js';
 function memory() { const values = new Map(); return { getItem: key => values.get(key) || null, setItem: (key,value) => values.set(key,value) }; }
 const makeRepo = (storage = memory()) => new RoomRepository(storage, STARTER_LESSONS);
 
@@ -84,4 +85,34 @@ test('Text self-check ignores case, punctuation and stress while keeping ё dist
   const check = compareRecitation('Я студент второго курса.','Я студент курса сегодня.');
   assert.deepEqual(check.missing,['второго']); assert.deepEqual(check.extra,['сегодня']);
   assert.equal(compareRecitation('её','ее').exact,false);
+});
+
+
+test('New textbook passage includes all original sentences, translations and vocabulary', () => {
+  const lesson = validateLesson(ADDED_LESSONS[0]);
+  assert.equal(lesson.sentences.length, 14);
+  assert.equal(lesson.vocabulary.length, 23);
+  assert.ok(lesson.sentences.every(sentence => sentence.translation && sentence.keywords.length));
+  assert.ok(lesson.sentences[0].text.startsWith('Вчера́ я был'));
+  assert.ok(lesson.sentences.at(-1).text.endsWith('познако́мился с ней.'));
+});
+
+test('Adding the textbook lesson preserves existing edits and progress, and respects later deletion', () => {
+  const storage = memory(), old = makeRepo(storage), original = old.state.lessons[0];
+  old.update(state => { state.lessons[0].title = '我的原有课文'; setProgress(state, original.id, 'sentences', original.sentences[0].id, 'mastered'); });
+  const updated = new RoomRepository(storage, STARTER_LESSONS, ADDED_LESSONS);
+  assert.equal(updated.state.lessons.length, 2);
+  assert.equal(updated.state.lessons[0].title, '我的原有课文');
+  assert.equal(progressStatus(updated.state, original.id, 'sentences', original.sentences[0].id), 'mastered');
+  assert.equal(updated.state.lessons[1].id, ADDED_LESSONS[0].id);
+  updated.update(state => { state.lessons = state.lessons.filter(lesson => lesson.id !== ADDED_LESSONS[0].id); });
+  assert.equal(new RoomRepository(storage, STARTER_LESSONS, ADDED_LESSONS).state.lessons.length, 1);
+});
+
+test('Adding the textbook lesson does not overwrite an existing lesson with the same id', () => {
+  const storage = memory(), old = makeRepo(storage);
+  old.update(state => { state.lessons.push({ ...structuredClone(ADDED_LESSONS[0]), title: '已编辑的课文' }); });
+  const updated = new RoomRepository(storage, STARTER_LESSONS, ADDED_LESSONS);
+  assert.equal(updated.state.lessons.length, 2);
+  assert.equal(updated.state.lessons[1].title, '已编辑的课文');
 });

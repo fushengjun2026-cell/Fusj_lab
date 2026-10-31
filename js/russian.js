@@ -1,12 +1,13 @@
-import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation } from './russian-core.js?v=1';
+import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation } from './russian-core.js?v=2';
 import { STARTER_LESSONS } from './russian-lessons.js?v=1';
+import { ADDED_LESSONS } from './russian-new-lesson.js?v=1';
 
 const $ = id => document.getElementById(id);
 const el = (tag, className = '', text) => { const node = document.createElement(tag); node.className = className; if (text !== undefined) node.textContent = text; return node; };
 const message = (id, text = '') => { $(id).textContent = text; $(id).hidden = !text; };
 let storage = null;
 try { storage = localStorage; } catch {}
-const repo = new RoomRepository(storage, STARTER_LESSONS);
+const repo = new RoomRepository(storage, STARTER_LESSONS, ADDED_LESSONS);
 let mode = 'learn', hint = 2, role = 'all', sentenceId = null, showTranslation = true;
 let wordView = 'list', wordKey = null, wordRevealed = false, wordOrder = [];
 let lessonDraft = null, wordDraft = null, lessonDirty = false, wordDirty = false, rawDirty = false;

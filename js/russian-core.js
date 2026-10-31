@@ -111,7 +111,8 @@ export function validateState(raw) {
     progress[lesson.id] = item;
     if (lesson.sentences.some(sentence => sentence.id === raw.cursors?.[lesson.id])) cursors[lesson.id] = raw.cursors[lesson.id];
   }
-  const result = { version: 1, lessons, progress, cursors, selectedLessonId: lessons.some(lesson => lesson.id === raw.selectedLessonId) ? raw.selectedLessonId : lessons[0].id };
+  const addedLessonIds = Array.isArray(raw.addedLessonIds) ? [...new Set(raw.addedLessonIds.filter(id))] : [];
+  const result = { version: 1, lessons, progress, cursors, addedLessonIds, selectedLessonId: lessons.some(lesson => lesson.id === raw.selectedLessonId) ? raw.selectedLessonId : lessons[0].id };
   if (new TextEncoder().encode(JSON.stringify(result)).length > MAX_BYTES) fail('课文库过大，请先导出备份，并减少较长的内容。');
   return result;
 }
@@ -144,19 +145,32 @@ export function setProgress(state, lessonId, collection, recordId, status) {
 }
 
 export class RoomRepository {
-  constructor(storage, seed) {
+  constructor(storage, seed, additions = []) {
     this.storage = storage;
     this.lastRaw = null;
     this.recoveryRaw = '';
     this.warning = '';
     this.suspended = false;
-    const fallback = () => validateState({ version: 1, lessons: seed });
+    const fallback = () => validateState({ version: 1, lessons: [...seed, ...additions], addedLessonIds: additions.map(lesson => lesson.id) });
     try {
       this.lastRaw = storage?.getItem(ROOM_KEY) || null;
       if (this.lastRaw) {
         try { this.state = validateState(JSON.parse(this.lastRaw)); }
         catch { this.recoveryRaw = this.lastRaw; this.suspended = true; this.warning = '本地存档暂时无法读取，原始数据已保留。当前为临时模式，请先下载原始存档备份。'; this.state = fallback(); }
       } else { this.state = fallback(); this.update(() => {}); }
+      if (!this.suspended) {
+        const unseen = additions.filter(lesson => !this.state.addedLessonIds.includes(lesson.id));
+        if (unseen.length) {
+          try {
+            this.update(state => {
+              for (const lesson of unseen) {
+                if (!state.lessons.some(item => item.id === lesson.id)) state.lessons.push(structuredClone(lesson));
+                state.addedLessonIds.push(lesson.id);
+              }
+            });
+          } catch { this.warning = '新课文暂时无法加入，请先导出备份并检查课文数量。'; }
+        }
+      }
     } catch { this.state = fallback(); this.warning = '浏览器无法保存学习记录。当前可继续练习，请用「导出备份」保存课文和进度。'; }
   }
   update(mutator) {
