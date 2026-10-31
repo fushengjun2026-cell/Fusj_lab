@@ -116,3 +116,17 @@ test('Adding the textbook lesson does not overwrite an existing lesson with the 
   assert.equal(updated.state.lessons.length, 2);
   assert.equal(updated.state.lessons[1].title, '已编辑的课文');
 });
+
+test('Every word in the supplied lessons has an offline contextual gloss', async () => {
+  const { lookupRussianWord } = await import('../js/russian-dictionary.js');
+  for (const lesson of [...STARTER_LESSONS, ...ADDED_LESSONS]) {
+    for (const sentence of lesson.sentences) {
+      for (const word of normalizeRussian(sentence.text).match(/\p{Script=Cyrillic}[\p{Script=Cyrillic}\p{M}]*/gu) || []) {
+        const gloss = lookupRussianWord(word);
+        assert.ok(gloss?.part && gloss?.meaning, `Missing gloss for ${word}`);
+      }
+    }
+  }
+  assert.equal(lookupRussianWord('бра́та').lemma, 'брат');
+  assert.equal(lookupRussianWord('несуществующееслово'), null);
+});

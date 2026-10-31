@@ -73,6 +73,17 @@
 .speaker-row { display: flex; align-items: center; gap: 8px; margin-top: 26px; color: #9b82ab; font-size: .76rem; }
 .speaker-dot { width: 6px; height: 6px; border-radius: 50%; background: #b698c5; }
 .russian-sentence { margin: 13px 0 26px; color: #443451; font-family: var(--russian-text); font-size: clamp(1.65rem,3vw,2.25rem); line-height: 1.65; overflow-wrap: anywhere; }
+.sentence-word { display: inline; padding: 0; border: 0; border-radius: 3px; background: transparent; color: inherit; font: inherit; line-height: inherit; text-align: inherit; cursor: pointer; }
+.sentence-word:hover, .sentence-word[aria-pressed="true"] { background: #eee5f2; color: #704d82; }
+.sentence-word:focus-visible { outline: 2px solid #a88bb7; outline-offset: 3px; }
+.word-lookup-hint { margin: -17px 0 21px; color: #a697a6; font-size: .68rem; }
+.word-lookup { margin: -6px 0 22px; padding: 17px 19px; border: 1px solid #e3d4e8; border-radius: 12px; background: #f7f1f7; }
+.word-lookup-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.word-lookup-heading strong { color: #684d79; font-family: var(--russian-text); font-size: 1.35rem; font-weight: 400; overflow-wrap: anywhere; }
+.word-lookup-heading .room-close { width: 28px; height: 28px; font-size: 1.15rem !important; }
+.word-lookup-lemma { margin: 5px 0 0; color: #9a829f; font-size: .72rem; line-height: 1.7; }
+.word-lookup-meaning { margin: 8px 0 13px; color: #6f6171; font-size: .86rem; line-height: 1.8; }
+.word-lookup .room-button { min-height: 35px; padding: 6px 12px; font-size: .73rem !important; }
 .hidden-original { display: grid; gap: 15px; min-height: 100px; padding: 25px 0; }
 .hidden-original span { color: #8f7a9b; font-size: .91rem; }
 .hidden-original i { display: block; width: min(75%,330px); height: 1px; background: repeating-linear-gradient(90deg,#dfd2e2 0 8px,transparent 8px 14px); }

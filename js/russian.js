@@ -1,6 +1,7 @@
 import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation } from './russian-core.js?v=2';
 import { STARTER_LESSONS } from './russian-lessons.js?v=1';
 import { ADDED_LESSONS } from './russian-new-lesson.js?v=1';
+import { lookupRussianWord } from './russian-dictionary.js?v=1';
 
 const $ = id => document.getElementById(id);
 const el = (tag, className = '', text) => { const node = document.createElement(tag); node.className = className; if (text !== undefined) node.textContent = text; return node; };
@@ -12,6 +13,7 @@ let mode = 'learn', hint = 2, role = 'all', sentenceId = null, showTranslation =
 let wordView = 'list', wordKey = null, wordRevealed = false, wordOrder = [];
 let lessonDraft = null, wordDraft = null, lessonDirty = false, wordDirty = false, rawDirty = false;
 let voices = [], utterance = null, speechEpoch = 0;
+let selectedWord = null, selectedWordButton = null;
 const statusNames = { new: '还没自查', review: '待复习', mastered: '已掌握' };
 const lesson = () => repo.state.lessons.find(item => item.id === repo.state.selectedLessonId);
 const sentenceQueue = () => lesson().sentences.filter(item => (role === 'all' || item.speaker === role) && (!$('review-only').checked || progressStatus(repo.state, lesson().id, 'sentences', item.id) === 'review'));
@@ -53,7 +55,46 @@ function renderHeading() {
   $('role-filter').replaceChildren(new Option('全部角色', 'all'), ...roles.map(name => new Option(name, name)));
   $('role-filter').value = role;
 }
+const wordKeyText = value => speechText(value).toLocaleLowerCase('ru').trim();
+function closeLookup(returnFocus = false) {
+  $('word-lookup').hidden = true;
+  if (selectedWordButton) {
+    selectedWordButton.setAttribute('aria-pressed', 'false');
+    if (returnFocus) selectedWordButton.focus();
+  }
+  selectedWord = null; selectedWordButton = null;
+}
+function showWordLookup(button, form) {
+  if (selectedWordButton === button) { closeLookup(true); return; }
+  closeLookup();
+  const known = lookupRussianWord(form);
+  const matching = lesson().vocabulary.find(word => wordKeyText(word.word) === wordKeyText(known?.lemma || form));
+  const direct = lesson().vocabulary.find(word => wordKeyText(word.word) === wordKeyText(form));
+  const existing = matching || direct;
+  selectedWord = { form, known, existing, sentence: currentSentence() };
+  selectedWordButton = button; button.setAttribute('aria-pressed', 'true');
+  $('lookup-word').textContent = form;
+  $('lookup-lemma').textContent = known ? `${known.part} · 原形：${known.lemma}` : existing ? '来自当前课文的词汇表' : '词性暂未收录';
+  $('lookup-meaning').textContent = known?.meaning || existing?.meaning || '这个词暂时没有释义，可以加入词汇表时自己补充。';
+  $('lookup-add').textContent = existing ? '已在词汇表 · 查看词条 ↗' : '加入词汇表 ＋';
+  $('word-lookup').hidden = false;
+}
+function renderSentenceWords(text) {
+  const container = $('sentence-text'); container.replaceChildren();
+  const pattern = /\p{Script=Cyrillic}[\p{Script=Cyrillic}\p{M}]*/gu;
+  let end = 0;
+  for (const match of text.matchAll(pattern)) {
+    container.append(document.createTextNode(text.slice(end, match.index)));
+    const button = el('button', 'sentence-word', match[0]);
+    button.type = 'button'; button.setAttribute('aria-pressed', 'false');
+    button.setAttribute('aria-label', `${match[0]}，查看词义`);
+    button.addEventListener('click', () => showWordLookup(button, match[0]));
+    container.append(button); end = match.index + match[0].length;
+  }
+  container.append(document.createTextNode(text.slice(end)));
+}
 function renderPractice(reset = false) {
+  closeLookup();
   const queue = sentenceQueue(), current = currentSentence();
   if (reset) { hint = mode === 'learn' ? 2 : 0; $('recitation-input').value = ''; message('recitation-result'); stopSpeech(); }
   $('mode-learn').setAttribute('aria-pressed', String(mode === 'learn'));
@@ -68,7 +109,8 @@ function renderPractice(reset = false) {
   $('sentence-status').textContent = statusNames[progressStatus(repo.state, lesson().id, 'sentences', current.id)];
   $('sentence-speaker').textContent = current.speaker || '课文';
   $('sentence-text').hidden = !originalVisible;
-  $('sentence-text').textContent = originalVisible ? current.text : '';
+  renderSentenceWords(originalVisible ? current.text : '');
+  document.querySelector('.word-lookup-hint').hidden = !originalVisible;
   $('hidden-original').hidden = originalVisible;
   $('sentence-translation').textContent = showTranslation ? (current.translation || '这句尚未添加中文释义，可在「编辑课文」补充。') : '释义已隐藏，试着直接用俄语思考。';
   $('toggle-translation').textContent = showTranslation ? '隐藏释义' : '显示释义';
@@ -231,16 +273,16 @@ function splitPassage() {
   renderSentenceEditors(); rawDirty = false; lessonDirty = true;
   $('parse-message').textContent = `已整理 ${result.sentences.length} 句。${result.warnings.length ? '\n' + result.warnings.join('\n') : '请核对分句、中文释义和重音，再保存。'}`;
 }
-function openWord(existing = null, fromSentence = null) {
+function openWord(existing = null, fromSentence = null, lookup = null) {
   const selected = window.getSelection()?.toString().trim() || '';
   const selectionInSentence = $('sentence-text').contains(window.getSelection()?.anchorNode);
   const picked = fromSentence && selectionInSentence && /[\u0400-\u04ff]/.test(selected) && selected.length <= 120 ? selected : '';
   wordDraft = { lessonId: existing?.lesson.id || lesson().id, id: existing?.word.id || newId(), existing: !!existing };
   $('word-editor-title').textContent = existing ? '编辑词条' : '记一个新词';
   $('edit-word-lesson').replaceChildren(...repo.state.lessons.map(item => new Option(item.title,item.id))); $('edit-word-lesson').value = wordDraft.lessonId; $('edit-word-lesson').disabled = !!existing;
-  $('edit-word').value = existing?.word.word || speechText(picked);
-  $('edit-word-reading').value = existing?.word.pronunciation || picked;
-  $('edit-word-meaning').value = existing?.word.meaning || '';
+  $('edit-word').value = existing?.word.word || lookup?.known?.lemma || speechText(lookup?.form || picked);
+  $('edit-word-reading').value = existing?.word.pronunciation || (lookup && wordKeyText(lookup.form) === wordKeyText(lookup.known?.lemma || lookup.form) ? lookup.form : '') || picked;
+  $('edit-word-meaning').value = existing?.word.meaning || (lookup?.known ? `${lookup.known.part} · ${lookup.known.meaning}` : '');
   $('edit-word-example').value = existing?.word.example || fromSentence?.text || '';
   $('edit-word-translation').value = existing?.word.exampleTranslation || fromSentence?.translation || '';
   $('delete-word').hidden = !existing; message('word-error'); wordDirty = false; $('word-dialog').showModal(); $('edit-word').focus();
@@ -275,6 +317,13 @@ $('delete-lesson').addEventListener('click', () => {
   if (!confirm(`删除「${lessonDraft.title}」及其当前设备上的进度？建议先导出备份。`)) return;
   try { save(state => { state.lessons = state.lessons.filter(item => item.id !== lessonDraft.id); if (state.selectedLessonId === lessonDraft.id) state.selectedLessonId = state.lessons[0].id; }); lessonDirty = false; $('lesson-dialog').close(); role = 'all'; sentenceId = null; wordKey = null; renderAll(true); notice('这篇课文已从当前设备移除。'); }
   catch (error) { message('lesson-error',error.message); }
+});
+$('close-lookup').addEventListener('click', () => closeLookup(true));
+$('lookup-add').addEventListener('click', () => {
+  if (!selectedWord) return;
+  const picked = selectedWord;
+  closeLookup();
+  openWord(picked.existing ? { lesson: lesson(), word: picked.existing } : null, picked.sentence, picked);
 });
 $('add-word').addEventListener('click', () => openWord());
 $('word-from-sentence').addEventListener('click', () => { if (currentSentence()) openWord(null,currentSentence()); });
