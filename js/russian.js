@@ -121,7 +121,8 @@ function renderPractice(reset = false) {
   $('next-hint').textContent = ['给我关键词','揭示原文','原文已揭示'][hint];
   $('show-answer').hidden = originalVisible;
   $('self-check').hidden = mode !== 'recite';
-  for (const id of ['sentence-review','sentence-known','compare-recitation']) $(id).disabled = !originalVisible;
+  for (const id of ['sentence-review','sentence-known']) $(id).disabled = !originalVisible;
+  $('compare-recitation').disabled = false;
   $('self-rating-note').textContent = originalVisible ? '对照之后，再判断自己是否记住了。' : '揭示原文后，给自己一个诚实的判断。';
   $('previous-sentence').disabled = index === 0; $('next-sentence').disabled = index === queue.length - 1;
   $('sentence-position').textContent = `第 ${index + 1} 句，共 ${queue.length} 句`;
@@ -138,12 +139,33 @@ function renderAll(reset = false) { renderShelf(); renderHeading(); renderPracti
 function moveTo(id) { guarded(() => { save(state => { state.cursors[lesson().id] = id; }); sentenceId = id; renderPractice(true); }); }
 function moveSentence(delta) { const queue = sentenceQueue(), index = queue.findIndex(s => s.id === currentSentence()?.id); if (queue[index + delta]) moveTo(queue[index + delta].id); }
 function setMode(value) { mode = value; renderPractice(true); }
+function updateRecitationCheck() {
+  const current = currentSentence(), attempt = $('recitation-input').value.trim();
+  if (mode !== 'recite' || !current || !attempt) { message('recitation-result'); return; }
+  const result = compareRecitation(current.text, attempt);
+  if (result.exact && !result.truncated) {
+    if (hint < 2) { hint = 2; renderPractice(); }
+    message('recitation-result', '✓ 文字一致，可以自评；发音仍需自行确认。');
+  } else message('recitation-result');
+}
 function rateSentence(status) {
   guarded(() => {
-    const current = currentSentence(); if (!current || mode !== 'recite' || hint < 2) return;
-    save(state => setProgress(state, lesson().id, 'sentences', current.id, status));
-    renderShelf(); renderHeading(); renderPractice(!sentenceQueue().some(item => item.id === current.id));
-    $('self-rating-note').textContent = status === 'mastered' ? '已记下这次进步。可以继续下一句。' : '已加入待复习，之后可单独练习。';
+    const queue = sentenceQueue(), current = currentSentence();
+    if (!current || mode !== 'recite' || hint < 2) return;
+    const index = queue.findIndex(item => item.id === current.id);
+    const next = queue[index + 1];
+    const removed = $('review-only').checked && status === 'mastered';
+    const fallback = removed && !next ? queue[index - 1] : null;
+    const target = next || fallback;
+    save(state => {
+      setProgress(state, lesson().id, 'sentences', current.id, status);
+      if (target) state.cursors[lesson().id] = target.id;
+    });
+    if (target) sentenceId = target.id;
+    renderShelf(); renderHeading(); renderPractice(!!target || removed);
+    if (next) notice('');
+    else if (fallback) notice('已记录掌握情况，当前已是本组最后一句，已回到上一句。');
+    else if (!removed) $('self-rating-note').textContent = status === 'mastered' ? '已记录掌握情况，当前已是本组最后一句。' : '已记为待复习，当前已是本组最后一句。';
   });
 }
 
@@ -174,6 +196,7 @@ function updateDictationText(session, transcript) {
   if (before.length + addition.length + after.length > input.maxLength) return false;
   input.setRangeText(addition, start, end, 'end');
   session.inserted = addition;
+  updateRecitationCheck();
   return true;
 }
 
@@ -464,14 +487,16 @@ $('sentence-review').addEventListener('click', () => rateSentence('review')); $(
 $('listen-sentence').addEventListener('click', () => { if (currentSentence()) speak(currentSentence().text); });
 $('dictation-button').addEventListener('click', toggleDictation);
 $('recitation-input').addEventListener('input', () => {
+  updateRecitationCheck();
   if (dictation) { cancelDictation(); $('dictation-status').textContent = '已停止语音输入，当前文字已保留，可以继续编辑。'; }
 });
 $('compare-recitation').addEventListener('click', () => {
   if (dictation) cancelDictation();
-  if (hint < 2 || !currentSentence()) return;
+  if (!currentSentence()) return;
   const attempt = $('recitation-input').value.trim(); if (!attempt) { message('recitation-result','先在上方写一句俄语，再对照。'); return; }
   const result = compareRecitation(currentSentence().text,attempt);
-  message('recitation-result', result.exact ? '文字对照一致。再听一次，检查自己的发音和重音。' : `匹配 ${result.matched} / ${result.total} 个词。\n${result.missing.length ? `漏写或需改正：${result.missing.join(' · ')}\n` : ''}${result.extra.length ? `多写或不同的词：${result.extra.join(' · ')}` : ''}${result.truncated ? '\n仅对照了前 350 个词。' : ''}`);
+  hint = 2; renderPractice();
+  message('recitation-result', result.exact && !result.truncated ? '✓ 文字一致，可以自评；发音仍需自行确认。' : `匹配 ${result.matched} / ${result.total} 个词。\n${result.missing.length ? `漏写或需改正：${result.missing.join(' · ')}\n` : ''}${result.extra.length ? `多写或不同的词：${result.extra.join(' · ')}` : ''}${result.truncated ? '\n仅对照了前 350 个词。' : ''}`);
 });
 for (const tab of ['reading','vocabulary']) {
   $(`tab-${tab}`).addEventListener('click', () => setTab(tab));
