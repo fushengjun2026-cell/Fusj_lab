@@ -116,7 +116,19 @@
 .full-paper { padding: 27px 30px; border: 1px solid #e2d7c9; border-radius: 18px; background: #fffdf7; box-shadow: 0 14px 38px #79603f06; }
 .full-paper > label { display: block; color: #806b88; font-size: .83rem; line-height: 1.8; }
 .full-paper > label span { display: block; color: #a995a0; font-size: .7rem; }
-.full-paper textarea { display: block; width: 100%; min-height: 210px; margin-top: 12px; padding: 14px; resize: vertical; border: 1px solid #e3d9de; border-radius: 10px; background: #fbf7f1; color: var(--text); font-family: var(--russian-text); font-size: 1.05rem; line-height: 1.8; }
+.full-editor { position: relative; margin-top: 12px; }
+.full-paper textarea, .full-highlights { box-sizing: border-box; width: 100%; padding: 14px; border: 1px solid #e3d9de; border-radius: 10px; font-family: var(--russian-text); font-size: 1.05rem; font-weight: 400; letter-spacing: normal; line-height: 1.8; tab-size: 8; }
+.full-paper textarea { position: relative; display: block; min-height: 210px; margin: 0; resize: vertical; background: #fbf7f1; color: var(--text); }
+.full-highlights { position: absolute; inset: 0; height: 100%; margin: 0; overflow: hidden; white-space: pre-wrap; overflow-wrap: break-word; background: #fbf7f1; color: var(--text); pointer-events: none; visibility: hidden; }
+.full-highlights mark { color: #b13f4b; background: #f7dce0; border-radius: 3px; }
+.full-editor.has-highlights .full-highlights { visibility: visible; }
+.full-editor.has-highlights textarea { background: transparent; color: transparent; -webkit-text-fill-color: transparent; caret-color: #674c78; }
+.full-editor.has-highlights textarea::selection { background: #bda5cd88; }
+.full-progress-head { display: flex; justify-content: space-between; gap: 12px; margin-top: 20px; }
+.full-progress { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 9px; }
+.full-progress span { display: inline-flex; min-width: 39px; min-height: 27px; justify-content: center; align-items: center; padding: 3px 7px; border: 1px solid #e5dce3; border-radius: 7px; color: #ad9bab; background: #faf6f3; font-size: .68rem; font-variant-numeric: tabular-nums; }
+.full-progress span.is-matched { border-color: #d3ddc8; color: #6f8a69; background: #eef2e9; }
+.full-progress span.is-unchecked { border-style: dashed; }
 .full-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-top: 20px; }
 .full-result { margin-top: 18px; overflow-wrap: anywhere; }
 .full-original { margin-top: 21px; padding-top: 18px; border-top: 1px solid #e9dedf; }

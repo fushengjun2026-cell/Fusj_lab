@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ROOM_KEY, RoomRepository, parsePassage, validateLesson, validateState, normalizeRussian, speechText, transliterate, setProgress, progressStatus, compareRecitation } from '../js/russian-core.js';
+import { ROOM_KEY, RoomRepository, parsePassage, validateLesson, validateState, normalizeRussian, speechText, transliterate, setProgress, progressStatus, compareRecitation, comparePassage } from '../js/russian-core.js';
 import { STARTER_LESSONS } from '../js/russian-lessons.js';
 import { ADDED_LESSONS } from '../js/russian-new-lesson.js';
 function memory() { const values = new Map(); return { getItem: key => values.get(key) || null, setItem: (key,value) => values.set(key,value) }; }
@@ -144,4 +144,31 @@ test('Full-passage comparison checks beyond the sentence limit and reports trunc
   assert.deepEqual(whole.extra, ['другое']);
   assert.equal(compareRecitation(full, full, 2500).exact, true);
   assert.equal(compareRecitation(full, full, 100).truncated, true);
+});
+
+
+test('Full passage aligns individual sentences and marks only extra input spans', () => {
+  const sentences = ['Вчера́ я был дома.', 'Она́ читает книгу.', 'Мне интересно.'];
+  const actual = 'Вчера я был дома. Она читает газету. Мне интересно!';
+  const result = comparePassage(sentences, actual);
+  assert.deepEqual(result.sentenceStatus, ['matched', 'incomplete', 'matched']);
+  assert.deepEqual(result.missing, ['книгу']);
+  assert.deepEqual(result.extra, ['газету']);
+  assert.equal(actual.slice(result.extraRanges[0].start, result.extraRanges[0].end), 'газету');
+});
+
+test('Passage comparison preserves accents and offsets and does not mark sentences with inserted words correct', () => {
+  const actual = 'Я о́чень люблю ёлку и снег.';
+  const result = comparePassage(['Я люблю ёлку.', 'И снег.'], actual);
+  assert.deepEqual(result.sentenceStatus, ['incomplete', 'matched']);
+  assert.equal(actual.slice(result.extraRanges[0].start, result.extraRanges[0].end), 'о́чень');
+  assert.equal(comparePassage(['Я люблю ёлку.'], 'Я люблю елку.').exact, false);
+  assert.equal(comparePassage(['Я люблю ёлку.'], 'я люблю ёлку!').exact, true);
+});
+
+test('Passage comparison reports unexamined sentences beyond its limit', () => {
+  const result = comparePassage(['Раз два.', 'Три четыре.'], 'Раз два три четыре', 2);
+  assert.equal(result.truncated, true);
+  assert.deepEqual(result.sentenceStatus, ['matched', 'unchecked']);
+  assert.equal(result.exact, false);
 });

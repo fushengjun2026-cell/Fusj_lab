@@ -1,4 +1,4 @@
-import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation } from './russian-core.js?v=3';
+import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation, comparePassage } from './russian-core.js?v=4';
 import { STARTER_LESSONS } from './russian-lessons.js?v=1';
 import { ADDED_LESSONS } from './russian-new-lesson.js?v=1';
 import { lookupRussianWord } from './russian-dictionary.js?v=1';
@@ -15,7 +15,7 @@ let lessonDraft = null, wordDraft = null, lessonDirty = false, wordDirty = false
 let voices = [], utterance = null, speechEpoch = 0;
 let dictation = null, dictationEpoch = 0, dictationTarget = 'sentence';
 const fullDrafts = new Map();
-let fullVisibleLessonId = null;
+let fullVisibleLessonId = null, fullProgressTimer = null;
 let selectedWord = null, selectedWordButton = null;
 const statusNames = { new: '还没自查', review: '待复习', mastered: '已掌握' };
 const lesson = () => repo.state.lessons.find(item => item.id === repo.state.selectedLessonId);
@@ -184,14 +184,50 @@ function showFullOriginal(show) {
   $('full-show-original').setAttribute('aria-expanded', String(show));
   $('full-show-original').textContent = show ? '收起全文原文 ↑' : '查看全文原文 ↓';
 }
+function clearFullHighlights() {
+  $('full-editor').classList.remove('has-highlights');
+  $('full-highlights').replaceChildren();
+}
+function renderFullProgress(result) {
+  const statuses = result.sentenceStatus, count = statuses.filter(status => status === 'matched').length;
+  $('full-progress-count').textContent = `${count} / ${statuses.length} 句已匹配`;
+  $('full-progress').replaceChildren(...statuses.map((status, index) => {
+    const badge = el('span', status === 'matched' ? 'is-matched' : status === 'unchecked' ? 'is-unchecked' : '', `${String(index + 1).padStart(2, '0')}${status === 'matched' ? ' ✓' : status === 'unchecked' ? ' ?' : ''}`);
+    badge.setAttribute('aria-label', `第 ${index + 1} 句，${status === 'matched' ? '已匹配' : status === 'unchecked' ? '超出对照范围' : '尚未完整匹配'}`);
+    return badge;
+  }));
+}
+function refreshFullProgress() {
+  clearTimeout(fullProgressTimer); fullProgressTimer = null;
+  const attempt = $('full-input').value;
+  if (attempt.trim() && fullTokens(attempt) === fullTokens(fullExpected())) {
+    renderFullProgress({ sentenceStatus: lesson().sentences.map(() => 'matched') });
+  } else renderFullProgress(comparePassage(lesson().sentences.map(sentence => sentence.text), attempt));
+}
+function scheduleFullProgress() {
+  clearTimeout(fullProgressTimer);
+  fullProgressTimer = setTimeout(refreshFullProgress, 180);
+}
+function showFullHighlights(ranges) {
+  const input = $('full-input'), text = input.value, layer = $('full-highlights');
+  layer.replaceChildren(); let position = 0;
+  for (const range of ranges) {
+    layer.append(document.createTextNode(text.slice(position, range.start)));
+    layer.append(el('mark', '', text.slice(range.start, range.end)));
+    position = range.end;
+  }
+  layer.append(document.createTextNode(text.slice(position) + (text.endsWith('\n') ? '\u200b' : '')));
+  $('full-editor').classList.toggle('has-highlights', ranges.length > 0);
+  layer.scrollTop = input.scrollTop; layer.scrollLeft = input.scrollLeft;
+}
 function renderFull() {
   const item = lesson();
   if (fullVisibleLessonId !== item.id) {
-    fullVisibleLessonId = item.id;
+    clearTimeout(fullProgressTimer); fullVisibleLessonId = item.id;
     let draft = fullDrafts.get(item.id);
     if (draft === undefined) { try { draft = sessionStorage.getItem(fullDraftKey(item.id)) || ''; } catch { draft = ''; } }
     $('full-input').value = draft;
-    message('full-result'); showFullOriginal(false);
+    message('full-result'); clearFullHighlights(); showFullOriginal(false);
   }
   $('full-sentence-count').textContent = `${item.sentences.length} 句`;
   $('full-original-text').replaceChildren(...item.sentences.map(sentence => {
@@ -199,9 +235,10 @@ function renderFull() {
     if (sentence.speaker) { const name = el('span', '', `${sentence.speaker}：`); row.append(name); }
     row.append(document.createTextNode(sentence.text)); return row;
   }));
+  refreshFullProgress();
 }
 function updateFullCheck() {
-  saveFullDraft();
+  saveFullDraft(); clearFullHighlights(); scheduleFullProgress();
   const attempt = $('full-input').value.trim();
   if (attempt && fullTokens(attempt) === fullTokens(fullExpected())) {
     message('full-result', '✓ 全文文字一致！发音仍需自行确认。');
@@ -210,12 +247,18 @@ function updateFullCheck() {
 }
 function compareFullPassage() {
   if (dictation) cancelDictation();
-  const attempt = $('full-input').value.trim();
-  if (!attempt) { message('full-result', '先输入或说出课文，再对照全文。'); return; }
-  const result = compareRecitation(fullExpected(), attempt, 2500);
-  if (result.exact && !result.truncated) { message('full-result', '✓ 全文文字一致！发音仍需自行确认。'); showFullOriginal(true); return; }
+  const attempt = $('full-input').value;
+  if (!attempt.trim()) { message('full-result', '先输入或说出课文，再对照全文。'); return; }
+  clearTimeout(fullProgressTimer); fullProgressTimer = null;
+  if (fullTokens(attempt) === fullTokens(fullExpected())) {
+    renderFullProgress({ sentenceStatus: lesson().sentences.map(() => 'matched') });
+    clearFullHighlights(); message('full-result', '✓ 全文文字一致！发音仍需自行确认。'); showFullOriginal(true); return;
+  }
+  const result = comparePassage(lesson().sentences.map(sentence => sentence.text), attempt);
+  renderFullProgress(result); showFullHighlights(result.extraRanges);
+  if (result.exact) { message('full-result', '✓ 全文文字一致！发音仍需自行确认。'); showFullOriginal(true); return; }
   const display = words => `${words.slice(0, 100).join(' · ')}${words.length > 100 ? ` ……（共 ${words.length} 个）` : ''}`;
-  message('full-result', `匹配 ${result.matched} / ${result.total} 个原文词。\n${result.missing.length ? `漏写或需改正：${display(result.missing)}\n` : ''}${result.extra.length ? `多写或不同的词：${display(result.extra)}\n` : ''}${result.truncated ? '课文或输入超过 2500 词，本次仅对照各自前 2500 词。' : ''}`);
+  message('full-result', `匹配 ${result.matched} / ${result.total} 个原文词。\n${result.extra.length ? '默写框内已标红多写或不同的词；修改后可再次对照。\n' : ''}${result.missing.length ? `漏写或需改正：${display(result.missing)}\n` : ''}${result.extra.length ? `多写或不同的词：${display(result.extra)}\n` : ''}${result.truncated ? '课文或输入超过 2500 词，本次仅对照各自前 2500 词。' : ''}`);
 }
 
 const dictationDefault = '点击后允许使用麦克风。部分浏览器会将语音发送给语音服务处理。';
@@ -543,6 +586,7 @@ $('sentence-review').addEventListener('click', () => rateSentence('review')); $(
 $('listen-sentence').addEventListener('click', () => { if (currentSentence()) speak(currentSentence().text); });
 $('dictation-button').addEventListener('click', () => toggleDictation('sentence'));
 $('full-dictation-button').addEventListener('click', () => toggleDictation('full'));
+$('full-input').addEventListener('scroll', () => { $('full-highlights').scrollTop = $('full-input').scrollTop; $('full-highlights').scrollLeft = $('full-input').scrollLeft; });
 $('full-input').addEventListener('input', () => {
   updateFullCheck();
   if (dictation && dictationTarget === 'full') { cancelDictation(); $('full-dictation-status').textContent = '已停止语音输入，当前文字已保留，可以继续编辑。'; }

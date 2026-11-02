@@ -213,3 +213,35 @@ export function compareRecitation(expected, actual, limit = 350) {
   }
   return { matched: rows[0][0], total: wanted.length, missing, extra, exact: !missing.length && !extra.length, truncated: wantedAll.length > cap || receivedAll.length > cap };
 }
+
+// Match the full passage in order while retaining offsets in the user's original text.
+export function comparePassage(sentences, actual, limit = 2500) {
+  const cap = Number.isInteger(limit) ? Math.max(1, Math.min(limit, 2500)) : 2500;
+  const tokenize = value => Array.from(value.matchAll(/[\p{L}\p{M}\p{N}]+/gu), match => ({
+    text: match[0], key: speechText(match[0]).toLocaleLowerCase('ru'), start: match.index, end: match.index + match[0].length
+  }));
+  const expectedAll = [], sentenceRanges = [];
+  for (const sentence of sentences) {
+    const start = expectedAll.length;
+    expectedAll.push(...tokenize(sentence));
+    sentenceRanges.push([start, expectedAll.length]);
+  }
+  const actualAll = tokenize(actual), wanted = expectedAll.slice(0, cap), received = actualAll.slice(0, cap);
+  const rows = Array.from({ length: wanted.length + 1 }, () => new Uint16Array(received.length + 1));
+  for (let i = wanted.length - 1; i >= 0; i--) for (let j = received.length - 1; j >= 0; j--) rows[i][j] = wanted[i].key === received[j].key ? 1 + rows[i + 1][j + 1] : Math.max(rows[i + 1][j], rows[i][j + 1]);
+  const missing = [], extra = [], extraRanges = [], matchedIndices = Array(wanted.length).fill(-1);
+  let i = 0, j = 0;
+  while (i < wanted.length || j < received.length) {
+    if (i < wanted.length && j < received.length && wanted[i].key === received[j].key) { matchedIndices[i] = j; i++; j++; }
+    else if (i < wanted.length && (j === received.length || rows[i + 1][j] >= rows[i][j + 1])) missing.push(wanted[i++].key);
+    else { extra.push(received[j].key); extraRanges.push({ start: received[j].start, end: received[j].end }); j++; }
+  }
+  const sentenceStatus = sentenceRanges.map(([start, end]) => {
+    if (end > cap) return 'unchecked';
+    if (start === end) return 'incomplete';
+    const indices = matchedIndices.slice(start, end);
+    return indices.every((value, index) => value >= 0 && (index === 0 || value === indices[index - 1] + 1)) ? 'matched' : 'incomplete';
+  });
+  const truncated = expectedAll.length > cap || actualAll.length > cap;
+  return { matched: rows[0][0], total: wanted.length, missing, extra, extraRanges, sentenceStatus, truncated, exact: !truncated && !missing.length && !extra.length };
+}
