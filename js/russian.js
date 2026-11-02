@@ -162,19 +162,21 @@ function cancelDictation() {
   if (active) { try { active.abort(); } catch {} }
   dictationIdle();
 }
-function insertDictation(transcript) {
+function updateDictationText(session, transcript) {
   const input = $('recitation-input'), text = transcript.trim();
   if (!text) return true;
-  const index = input.selectionEnd ?? input.value.length;
-  const before = input.value.slice(0, index), after = input.value.slice(index);
+  const start = session.start, end = start + session.inserted.length;
+  if (input.value.slice(start, end) !== session.inserted) return false;
+  const before = input.value.slice(0, start), after = input.value.slice(end);
   const left = before && !/\s$/u.test(before) && !/^[.,!?;:…]/u.test(text) ? ' ' : '';
-  const right = after && !/^\s|^[.,!?;:…]/u.test(after) && !/\s$/u.test(text) ? ' ' : '';
+  const right = after && !/^(?:\s|[.,!?;:…])/u.test(after) && !/\s$/u.test(text) ? ' ' : '';
   const addition = left + text + right;
-  if (input.value.length + addition.length > input.maxLength) return false;
-  input.setRangeText(addition, index, index, 'end');
-  input.dispatchEvent(new Event('input', { bubbles: true }));
+  if (before.length + addition.length + after.length > input.maxLength) return false;
+  input.setRangeText(addition, start, end, 'end');
+  session.inserted = addition;
   return true;
 }
+
 function toggleDictation() {
   if (dictation) {
     $('dictation-button').disabled = true;
@@ -188,7 +190,9 @@ function toggleDictation() {
   let recognition;
   try { recognition = new Constructor(); }
   catch { dictationIdle('无法启动语音识别，请试试手机键盘的俄语听写。'); return; }
-  const epoch = ++dictationEpoch, completed = new Set();
+  const epoch = ++dictationEpoch;
+  const input = $('recitation-input');
+  const session = { start: input.selectionEnd ?? input.value.length, inserted: '', hasText: false, final: false };
   let failure = '';
   dictation = recognition;
   recognition.lang = 'ru-RU'; recognition.continuous = false; recognition.interimResults = true; recognition.maxAlternatives = 1;
@@ -198,16 +202,22 @@ function toggleDictation() {
   recognition.onstart = () => { if (epoch === dictationEpoch) $('dictation-status').textContent = '正在听，请用俄语背诵。'; };
   recognition.onresult = event => {
     if (epoch !== dictationEpoch) return;
-    const interim = [];
-    for (let i = event.resultIndex; i < event.results.length; i++) {
-      const result = event.results[i], transcript = result[0]?.transcript || '';
-      if (result.isFinal && !completed.has(i)) {
-        completed.add(i);
-        if (!insertDictation(transcript)) { failure = '输入框已满，请先整理文字。'; try { recognition.stop(); } catch {} }
-      } else if (!result.isFinal && transcript) interim.push(transcript);
+    const parts = [], provisional = [];
+    for (const result of Array.from(event.results)) {
+      const text = (result[0]?.transcript || '').trim();
+      if (text) { parts.push(text); if (!result.isFinal) provisional.push(text); }
     }
-    if (!failure) $('dictation-status').textContent = interim.length ? `正在识别：${interim.join(' ')}` : '已填入识别结果，可以继续说或停止。';
-    else $('dictation-status').textContent = failure;
+    const transcript = parts.join(' ');
+    if (transcript) {
+      if (!updateDictationText(session, transcript)) {
+        failure = '无法继续填入，请检查输入框内容或长度。';
+        try { recognition.stop(); } catch {}
+      } else {
+        session.hasText = true;
+        session.final = provisional.length === 0;
+      }
+    }
+    $('dictation-status').textContent = failure || (provisional.length ? '正在实时识别，文字可能随语音调整。' : '已填入识别结果，可以继续说或停止。');
   };
   recognition.onerror = event => {
     if (epoch !== dictationEpoch) return;
@@ -221,13 +231,13 @@ function toggleDictation() {
       'no-speech': '没有听清语音，请靠近麦克风再试一次。',
       'aborted': '语音输入已停止。'
     };
-    failure = errors[event.error] || '语音识别暂时失败，请重试或使用手机键盘的俄语听写。';
+    failure = event.error === 'no-speech' && session.hasText ? '已保留识别出的文字，可以检查并修改。' : errors[event.error] || '语音识别暂时失败，请重试或使用手机键盘的俄语听写。';
     $('dictation-status').textContent = failure;
   };
   recognition.onend = () => {
     if (epoch !== dictationEpoch) return;
     dictation = null;
-    dictationIdle(failure || (completed.size ? '识别结束，文字可继续修改。对照结果不能判断发音。' : '识别结束，未获得文字。请再试一次。'));
+    dictationIdle(failure || (session.hasText ? (session.final ? '识别结束，文字可继续修改。对照结果不能判断发音。' : '已保留实时识别文字，请检查最后几个词。') : '识别结束，未获得文字。请再试一次。'));
   };
   try { recognition.start(); }
   catch { dictation = null; dictationEpoch++; dictationIdle('无法启动语音识别，请重试或使用手机键盘的俄语听写。'); }
@@ -453,6 +463,9 @@ $('previous-sentence').addEventListener('click', () => moveSentence(-1)); $('nex
 $('sentence-review').addEventListener('click', () => rateSentence('review')); $('sentence-known').addEventListener('click', () => rateSentence('mastered'));
 $('listen-sentence').addEventListener('click', () => { if (currentSentence()) speak(currentSentence().text); });
 $('dictation-button').addEventListener('click', toggleDictation);
+$('recitation-input').addEventListener('input', () => {
+  if (dictation) { cancelDictation(); $('dictation-status').textContent = '已停止语音输入，当前文字已保留，可以继续编辑。'; }
+});
 $('compare-recitation').addEventListener('click', () => {
   if (dictation) cancelDictation();
   if (hint < 2 || !currentSentence()) return;
