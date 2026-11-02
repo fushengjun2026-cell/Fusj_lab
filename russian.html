@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="preload" href="assets/fonts/pt-serif-regular.woff" as="font" type="font/woff" crossorigin>
   <link rel="stylesheet" href="css/site.css?v=7">
-  <link rel="stylesheet" href="css/russian.css?v=4">
+  <link rel="stylesheet" href="css/russian.css?v=5">
 </head>
 <body data-page="projects" class="russian-room">
   <header class="site-header">
@@ -39,7 +39,7 @@
         <div id="storage-warning" class="room-notice storage-warning" role="status" hidden><span id="storage-message"></span><button id="recover-storage" class="room-link" type="button" hidden>下载原始存档</button></div>
         <header class="lesson-heading"><div><p class="paper-label">正在练习</p><h2 id="lesson-title">让我们认识一下</h2><p id="lesson-subtitle" lang="ru"></p></div><button id="edit-lesson" class="room-link" type="button">编辑课文 ↗</button></header>
         <div class="lesson-stats" aria-label="当前课文学习概况"><div><strong id="sentence-total">20</strong><span>练习句</span></div><div><strong id="sentence-mastered">0</strong><span>句已掌握</span></div><div><strong id="word-total">16</strong><span>个词与表达</span></div><div class="mastery-meter"><span>慢慢来，每次进步一点</span><progress id="mastery-progress" max="20" value="0" aria-label="课文掌握进度"></progress></div></div>
-        <div class="room-tabs" role="tablist" aria-label="学习内容"><button id="tab-reading" type="button" role="tab" aria-controls="reading-panel" aria-selected="true">课文背诵</button><button id="tab-vocabulary" type="button" role="tab" aria-controls="vocabulary-panel" aria-selected="false" tabindex="-1">词汇专栏</button></div>
+        <div class="room-tabs" role="tablist" aria-label="学习内容"><button id="tab-reading" type="button" role="tab" aria-controls="reading-panel" aria-selected="true">课文背诵</button><button id="tab-full" type="button" role="tab" aria-controls="full-panel" aria-selected="false" tabindex="-1">全文背诵</button><button id="tab-vocabulary" type="button" role="tab" aria-controls="vocabulary-panel" aria-selected="false" tabindex="-1">词汇专栏</button></div>
         <section id="reading-panel" role="tabpanel" aria-labelledby="tab-reading">
           <div class="practice-toolbar"><div class="mode-switch" role="group" aria-label="课文练习模式"><button id="mode-learn" type="button" aria-pressed="true">跟读熟悉</button><button id="mode-recite" type="button" aria-pressed="false">遮住背诵</button></div><label class="compact-label">练习角色<select id="role-filter"><option value="all">全部角色</option></select></label><label class="check-label"><input id="review-only" type="checkbox">只练待复习</label></div>
           <div id="sentence-empty" class="room-empty" hidden><h3>这一组没有待复习的句子。</h3><p>可以取消筛选，或换一个角色继续练习。</p><button id="show-all-sentences" class="room-button" type="button">练习全部句子</button></div>
@@ -64,6 +64,18 @@
           <div class="sentence-map" id="sentence-map" role="group" aria-label="选择练习句"></div>
           <div class="reading-footer"><p id="voice-status" role="status">正在检查设备上的俄语语音……</p><button id="word-from-sentence" type="button" class="room-link">从这句记一个词 ＋</button></div>
           <p class="keyboard-note">快捷键：← / → 切句，H 逐步提示。输入文字时不会触发。</p>
+        </section>
+        <section id="full-panel" role="tabpanel" aria-labelledby="tab-full" hidden>
+          <div class="full-intro"><div><span class="paper-label">完整地，再说一遍</span><h3>试着背下整篇课文。</h3><p>按照当前课文的顺序输入或说出全文；对话不需要输入角色名。</p></div><span id="full-sentence-count" class="full-count"></span></div>
+          <div class="full-paper">
+            <label for="full-input">全文默写 <span>文字相同时会自动打勾。标点、重音和大小写不影响对照。</span></label>
+            <textarea id="full-input" maxlength="60000" rows="9" lang="ru" spellcheck="false" placeholder="从第一句开始，写下或说出整篇课文……"></textarea>
+            <div class="dictation-controls"><button id="full-dictation-button" class="room-button" type="button" aria-pressed="false">语音输入俄语 ▷</button><p id="full-dictation-status" role="status" aria-live="polite">点击后允许使用麦克风。部分浏览器会将语音发送给语音服务处理。</p></div>
+            <div class="full-actions"><button id="full-compare" class="room-button room-button-primary" type="button">对照全文 ↗</button><button id="full-show-original" class="room-link" type="button" aria-expanded="false" aria-controls="full-original">查看全文原文 ↓</button></div>
+            <div id="full-result" class="recitation-result full-result" role="status" hidden></div>
+            <div id="full-original" class="full-original" hidden><span class="paper-label">课文原文</span><div id="full-original-text"></div></div>
+          </div>
+          <p class="full-caption">识别结果可修改；文字对照不能判断发音。草稿保留在当前标签页。</p>
         </section>
         <section id="vocabulary-panel" role="tabpanel" aria-labelledby="tab-vocabulary" hidden>
           <div class="vocabulary-heading"><div><h3>把常用表达，留在这里。</h3><p>单词和短语都可以收录；释义、重音和例句一起记。</p></div><button id="add-word" class="room-button" type="button">添加词汇 ＋</button></div>
@@ -100,6 +112,6 @@
     <form id="word-form"><label>收录到课文<select id="edit-word-lesson"></select></label><div class="form-pair"><label>俄语单词或短语<input id="edit-word" lang="ru" maxlength="120" required placeholder="例如：студент"></label><label>重音／读音提示<input id="edit-word-reading" lang="ru" maxlength="200" placeholder="例如：студе́нт"></label></div><label>中文词义<input id="edit-word-meaning" maxlength="400" required placeholder="例如：男大学生"></label><label>俄语例句<textarea id="edit-word-example" lang="ru" maxlength="2000" rows="3"></textarea></label><label>例句中文<textarea id="edit-word-translation" maxlength="2000" rows="2"></textarea></label><p id="word-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button id="delete-word" type="button" class="room-link danger-link" hidden>删除词条</button><button type="submit" class="room-button room-button-primary">保存词条 ↗</button></div></form>
   </dialog>
   <script src="js/site.js?v=3"></script>
-  <script type="module" src="js/russian.js?v=8"></script>
+  <script type="module" src="js/russian.js?v=9"></script>
 </body>
 </html>

@@ -1,4 +1,4 @@
-import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation } from './russian-core.js?v=2';
+import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation } from './russian-core.js?v=3';
 import { STARTER_LESSONS } from './russian-lessons.js?v=1';
 import { ADDED_LESSONS } from './russian-new-lesson.js?v=1';
 import { lookupRussianWord } from './russian-dictionary.js?v=1';
@@ -13,7 +13,9 @@ let mode = 'learn', hint = 2, role = 'all', sentenceId = null, showTranslation =
 let wordView = 'list', wordKey = null, wordRevealed = false, wordOrder = [];
 let lessonDraft = null, wordDraft = null, lessonDirty = false, wordDirty = false, rawDirty = false;
 let voices = [], utterance = null, speechEpoch = 0;
-let dictation = null, dictationEpoch = 0;
+let dictation = null, dictationEpoch = 0, dictationTarget = 'sentence';
+const fullDrafts = new Map();
+let fullVisibleLessonId = null;
 let selectedWord = null, selectedWordButton = null;
 const statusNames = { new: '还没自查', review: '待复习', mastered: '已掌握' };
 const lesson = () => repo.state.lessons.find(item => item.id === repo.state.selectedLessonId);
@@ -135,7 +137,7 @@ function renderPractice(reset = false) {
   }));
   updateSpeechButtons();
 }
-function renderAll(reset = false) { renderShelf(); renderHeading(); renderPractice(reset); renderVocabulary(); renderStorage(); }
+function renderAll(reset = false) { renderShelf(); renderHeading(); renderPractice(reset); renderFull(); renderVocabulary(); renderStorage(); }
 function moveTo(id) { guarded(() => { save(state => { state.cursors[lesson().id] = id; }); sentenceId = id; renderPractice(true); }); }
 function moveSentence(delta) { const queue = sentenceQueue(), index = queue.findIndex(s => s.id === currentSentence()?.id); if (queue[index + delta]) moveTo(queue[index + delta].id); }
 function setMode(value) { mode = value; renderPractice(true); }
@@ -169,14 +171,65 @@ function rateSentence(status) {
   });
 }
 
+function fullDraftKey(id) { return `fusj.russian.full-draft.${id}`; }
+function saveFullDraft() {
+  const value = $('full-input').value, id = lesson().id;
+  fullDrafts.set(id, value);
+  try { sessionStorage.setItem(fullDraftKey(id), value); } catch {}
+}
+function fullExpected() { return lesson().sentences.map(sentence => sentence.text).join(' '); }
+function fullTokens(text) { return (speechText(text).toLocaleLowerCase('ru').match(/[\p{L}\p{N}]+/gu) || []).join(' '); }
+function showFullOriginal(show) {
+  $('full-original').hidden = !show;
+  $('full-show-original').setAttribute('aria-expanded', String(show));
+  $('full-show-original').textContent = show ? '收起全文原文 ↑' : '查看全文原文 ↓';
+}
+function renderFull() {
+  const item = lesson();
+  if (fullVisibleLessonId !== item.id) {
+    fullVisibleLessonId = item.id;
+    let draft = fullDrafts.get(item.id);
+    if (draft === undefined) { try { draft = sessionStorage.getItem(fullDraftKey(item.id)) || ''; } catch { draft = ''; } }
+    $('full-input').value = draft;
+    message('full-result'); showFullOriginal(false);
+  }
+  $('full-sentence-count').textContent = `${item.sentences.length} 句`;
+  $('full-original-text').replaceChildren(...item.sentences.map(sentence => {
+    const row = el('p'); row.lang = 'ru';
+    if (sentence.speaker) { const name = el('span', '', `${sentence.speaker}：`); row.append(name); }
+    row.append(document.createTextNode(sentence.text)); return row;
+  }));
+}
+function updateFullCheck() {
+  saveFullDraft();
+  const attempt = $('full-input').value.trim();
+  if (attempt && fullTokens(attempt) === fullTokens(fullExpected())) {
+    message('full-result', '✓ 全文文字一致！发音仍需自行确认。');
+    showFullOriginal(true);
+  } else message('full-result');
+}
+function compareFullPassage() {
+  if (dictation) cancelDictation();
+  const attempt = $('full-input').value.trim();
+  if (!attempt) { message('full-result', '先输入或说出课文，再对照全文。'); return; }
+  const result = compareRecitation(fullExpected(), attempt, 2500);
+  if (result.exact && !result.truncated) { message('full-result', '✓ 全文文字一致！发音仍需自行确认。'); showFullOriginal(true); return; }
+  const display = words => `${words.slice(0, 100).join(' · ')}${words.length > 100 ? ` ……（共 ${words.length} 个）` : ''}`;
+  message('full-result', `匹配 ${result.matched} / ${result.total} 个原文词。\n${result.missing.length ? `漏写或需改正：${display(result.missing)}\n` : ''}${result.extra.length ? `多写或不同的词：${display(result.extra)}\n` : ''}${result.truncated ? '课文或输入超过 2500 词，本次仅对照各自前 2500 词。' : ''}`);
+}
+
 const dictationDefault = '点击后允许使用麦克风。部分浏览器会将语音发送给语音服务处理。';
 const dictationFallback = '当前浏览器不支持语音输入，可切换浏览器或使用手机键盘的俄语听写。';
 function dictationConstructor() { return window.SpeechRecognition || window.webkitSpeechRecognition; }
-function dictationIdle(text = dictationDefault) {
-  $('dictation-button').textContent = '语音输入俄语 ▷';
-  $('dictation-button').setAttribute('aria-pressed', 'false');
-  $('dictation-button').disabled = !dictationConstructor();
-  $('dictation-status').textContent = dictationConstructor() ? text : dictationFallback;
+function dictationElements(target) {
+  return target === 'full' ? { input: 'full-input', button: 'full-dictation-button', status: 'full-dictation-status' } : { input: 'recitation-input', button: 'dictation-button', status: 'dictation-status' };
+}
+function dictationIdle(text = dictationDefault, target = dictationTarget) {
+  const ui = dictationElements(target);
+  $(ui.button).textContent = '语音输入俄语 ▷';
+  $(ui.button).setAttribute('aria-pressed', 'false');
+  $(ui.button).disabled = !dictationConstructor();
+  $(ui.status).textContent = dictationConstructor() ? text : dictationFallback;
 }
 function cancelDictation() {
   dictationEpoch++;
@@ -185,7 +238,7 @@ function cancelDictation() {
   dictationIdle();
 }
 function updateDictationText(session, transcript) {
-  const input = $('recitation-input'), text = transcript.trim();
+  const input = $(dictationElements(session.target).input), text = transcript.trim();
   if (!text) return true;
   const start = session.start, end = start + session.inserted.length;
   if (input.value.slice(start, end) !== session.inserted) return false;
@@ -196,14 +249,17 @@ function updateDictationText(session, transcript) {
   if (before.length + addition.length + after.length > input.maxLength) return false;
   input.setRangeText(addition, start, end, 'end');
   session.inserted = addition;
-  updateRecitationCheck();
+  if (session.target === 'full') updateFullCheck(); else updateRecitationCheck();
   return true;
 }
 
-function toggleDictation() {
+function toggleDictation(target = 'sentence') {
+  if (dictation && dictationTarget !== target) cancelDictation();
+  dictationTarget = target;
+  const ui = dictationElements(target);
   if (dictation) {
-    $('dictation-button').disabled = true;
-    $('dictation-status').textContent = '正在结束识别……';
+    $(ui.button).disabled = true;
+    $(ui.status).textContent = '正在结束识别……';
     try { dictation.stop(); } catch { cancelDictation(); }
     return;
   }
@@ -214,15 +270,15 @@ function toggleDictation() {
   try { recognition = new Constructor(); }
   catch { dictationIdle('无法启动语音识别，请试试手机键盘的俄语听写。'); return; }
   const epoch = ++dictationEpoch;
-  const input = $('recitation-input');
-  const session = { start: input.selectionEnd ?? input.value.length, inserted: '', hasText: false, final: false };
+  const input = $(ui.input);
+  const session = { target, start: input.selectionEnd ?? input.value.length, inserted: '', hasText: false, final: false };
   let failure = '';
   dictation = recognition;
-  recognition.lang = 'ru-RU'; recognition.continuous = false; recognition.interimResults = true; recognition.maxAlternatives = 1;
-  $('dictation-button').textContent = '停止语音输入 ■';
-  $('dictation-button').setAttribute('aria-pressed', 'true');
-  $('dictation-status').textContent = '正在启动，请允许麦克风权限……';
-  recognition.onstart = () => { if (epoch === dictationEpoch) $('dictation-status').textContent = '正在听，请用俄语背诵。'; };
+  recognition.lang = 'ru-RU'; recognition.continuous = target === 'full'; recognition.interimResults = true; recognition.maxAlternatives = 1;
+  $(ui.button).textContent = '停止语音输入 ■';
+  $(ui.button).setAttribute('aria-pressed', 'true');
+  $(ui.status).textContent = '正在启动，请允许麦克风权限……';
+  recognition.onstart = () => { if (epoch === dictationEpoch) $(ui.status).textContent = '正在听，请用俄语背诵。'; };
   recognition.onresult = event => {
     if (epoch !== dictationEpoch) return;
     const parts = [], provisional = [];
@@ -240,7 +296,7 @@ function toggleDictation() {
         session.final = provisional.length === 0;
       }
     }
-    $('dictation-status').textContent = failure || (provisional.length ? '正在实时识别，文字可能随语音调整。' : '已填入识别结果，可以继续说或停止。');
+    $(ui.status).textContent = failure || (provisional.length ? '正在实时识别，文字可能随语音调整。' : '已填入识别结果，可以继续说或停止。');
   };
   recognition.onerror = event => {
     if (epoch !== dictationEpoch) return;
@@ -255,12 +311,12 @@ function toggleDictation() {
       'aborted': '语音输入已停止。'
     };
     failure = event.error === 'no-speech' && session.hasText ? '已保留识别出的文字，可以检查并修改。' : errors[event.error] || '语音识别暂时失败，请重试或使用手机键盘的俄语听写。';
-    $('dictation-status').textContent = failure;
+    $(ui.status).textContent = failure;
   };
   recognition.onend = () => {
     if (epoch !== dictationEpoch) return;
     dictation = null;
-    dictationIdle(failure || (session.hasText ? (session.final ? '识别结束，文字可继续修改。对照结果不能判断发音。' : '已保留实时识别文字，请检查最后几个词。') : '识别结束，未获得文字。请再试一次。'));
+    dictationIdle(failure || (session.hasText ? (target === 'full' ? '已保留识别文字，可再次点击继续输入。' : session.final ? '识别结束，文字可继续修改。对照结果不能判断发音。' : '已保留实时识别文字，请检查最后几个词。') : '识别结束，未获得文字。请再试一次。'));
   };
   try { recognition.start(); }
   catch { dictation = null; dictationEpoch++; dictationIdle('无法启动语音识别，请重试或使用手机键盘的俄语听写。'); }
@@ -349,7 +405,7 @@ function rateWord(status) {
   });
 }
 function setTab(value, focus = false) {
-  for (const tab of ['reading','vocabulary']) { const active = tab === value; $(`tab-${tab}`).setAttribute('aria-selected', String(active)); $(`tab-${tab}`).tabIndex = active ? 0 : -1; $(`${tab}-panel`).hidden = !active; }
+  for (const tab of ['reading','full','vocabulary']) { const active = tab === value; $(`tab-${tab}`).setAttribute('aria-selected', String(active)); $(`tab-${tab}`).tabIndex = active ? 0 : -1; $(`${tab}-panel`).hidden = !active; }
   cancelDictation(); stopSpeech(); if (focus) $(`tab-${value}`).focus();
 }
 
@@ -485,10 +541,17 @@ $('show-answer').addEventListener('click', () => { hint = 2; renderPractice(); }
 $('previous-sentence').addEventListener('click', () => moveSentence(-1)); $('next-sentence').addEventListener('click', () => moveSentence(1));
 $('sentence-review').addEventListener('click', () => rateSentence('review')); $('sentence-known').addEventListener('click', () => rateSentence('mastered'));
 $('listen-sentence').addEventListener('click', () => { if (currentSentence()) speak(currentSentence().text); });
-$('dictation-button').addEventListener('click', toggleDictation);
+$('dictation-button').addEventListener('click', () => toggleDictation('sentence'));
+$('full-dictation-button').addEventListener('click', () => toggleDictation('full'));
+$('full-input').addEventListener('input', () => {
+  updateFullCheck();
+  if (dictation && dictationTarget === 'full') { cancelDictation(); $('full-dictation-status').textContent = '已停止语音输入，当前文字已保留，可以继续编辑。'; }
+});
+$('full-compare').addEventListener('click', compareFullPassage);
+$('full-show-original').addEventListener('click', () => showFullOriginal($('full-original').hidden));
 $('recitation-input').addEventListener('input', () => {
   updateRecitationCheck();
-  if (dictation) { cancelDictation(); $('dictation-status').textContent = '已停止语音输入，当前文字已保留，可以继续编辑。'; }
+  if (dictation && dictationTarget === 'sentence') { cancelDictation(); $('dictation-status').textContent = '已停止语音输入，当前文字已保留，可以继续编辑。'; }
 });
 $('compare-recitation').addEventListener('click', () => {
   if (dictation) cancelDictation();
@@ -498,9 +561,10 @@ $('compare-recitation').addEventListener('click', () => {
   hint = 2; renderPractice();
   message('recitation-result', result.exact && !result.truncated ? '✓ 文字一致，可以自评；发音仍需自行确认。' : `匹配 ${result.matched} / ${result.total} 个词。\n${result.missing.length ? `漏写或需改正：${result.missing.join(' · ')}\n` : ''}${result.extra.length ? `多写或不同的词：${result.extra.join(' · ')}` : ''}${result.truncated ? '\n仅对照了前 350 个词。' : ''}`);
 });
-for (const tab of ['reading','vocabulary']) {
+const roomTabs = ['reading', 'full', 'vocabulary'];
+for (const tab of roomTabs) {
   $(`tab-${tab}`).addEventListener('click', () => setTab(tab));
-  $(`tab-${tab}`).addEventListener('keydown', event => { if (['ArrowLeft','ArrowRight'].includes(event.key)) { event.preventDefault(); setTab(tab === 'reading' ? 'vocabulary' : 'reading',true); } });
+  $(`tab-${tab}`).addEventListener('keydown', event => { if (['ArrowLeft','ArrowRight'].includes(event.key)) { event.preventDefault(); const delta = event.key === 'ArrowRight' ? 1 : -1; setTab(roomTabs[(roomTabs.indexOf(tab) + delta + roomTabs.length) % roomTabs.length], true); } });
 }
 for (const id of ['word-search','word-scope','word-filter','word-direction']) $(id).addEventListener(id === 'word-search' ? 'input' : 'change', () => { wordKey = null; wordOrder = []; wordRevealed = false; renderVocabulary(); });
 $('word-list-mode').addEventListener('click', () => { wordView = 'list'; renderVocabulary(); });
@@ -522,4 +586,4 @@ window.addEventListener('pagehide', () => { cancelDictation(); stopSpeech(); });
 document.addEventListener('visibilitychange', () => { if (document.hidden) cancelDictation(); });
 if ('speechSynthesis' in window) speechSynthesis.addEventListener('voiceschanged',loadVoices);
 sentenceId = repo.state.cursors[lesson().id] || null;
-renderAll(true); loadVoices();
+renderAll(true); dictationIdle(dictationDefault, 'full'); loadVoices();

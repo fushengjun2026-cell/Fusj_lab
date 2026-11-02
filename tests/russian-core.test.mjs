@@ -130,3 +130,18 @@ test('Every word in the supplied lessons has an offline contextual gloss', async
   assert.equal(lookupRussianWord('бра́та').lemma, 'брат');
   assert.equal(lookupRussianWord('несуществующееслово'), null);
 });
+
+test('Full-passage comparison checks beyond the sentence limit and reports truncation explicitly', () => {
+  const words = Array.from({ length: 500 }, (_, i) => `слово${i}`);
+  const full = words.join(' ');
+  const changed = [...words]; changed[420] = 'другое';
+  const sentenceLimit = compareRecitation(full, changed.join(' '));
+  assert.equal(sentenceLimit.truncated, true);
+  const whole = compareRecitation(full, changed.join(' '), 2500);
+  assert.equal(whole.truncated, false);
+  assert.equal(whole.exact, false);
+  assert.deepEqual(whole.missing, ['слово420']);
+  assert.deepEqual(whole.extra, ['другое']);
+  assert.equal(compareRecitation(full, full, 2500).exact, true);
+  assert.equal(compareRecitation(full, full, 100).truncated, true);
+});

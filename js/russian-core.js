@@ -197,9 +197,11 @@ export class RoomRepository {
   import(raw) { return this.update(next => Object.assign(next, mergeBackup(next, raw))); }
 }
 
-export function compareRecitation(expected, actual) {
+export function compareRecitation(expected, actual, limit = 350) {
   const tokenize = value => (speechText(value).toLocaleLowerCase('ru').match(/[\p{L}\p{N}]+/gu) || []);
-  const wanted = tokenize(expected).slice(0, 350), received = tokenize(actual).slice(0, 350);
+  const cap = Number.isInteger(limit) ? Math.max(1, Math.min(limit, 2500)) : 350;
+  const wantedAll = tokenize(expected), receivedAll = tokenize(actual);
+  const wanted = wantedAll.slice(0, cap), received = receivedAll.slice(0, cap);
   const rows = Array.from({ length: wanted.length + 1 }, () => new Uint16Array(received.length + 1));
   for (let i = wanted.length - 1; i >= 0; i--) for (let j = received.length - 1; j >= 0; j--) rows[i][j] = wanted[i] === received[j] ? 1 + rows[i + 1][j + 1] : Math.max(rows[i + 1][j], rows[i][j + 1]);
   const missing = [], extra = [];
@@ -209,5 +211,5 @@ export function compareRecitation(expected, actual) {
     else if (i < wanted.length && (j === received.length || rows[i + 1][j] >= rows[i][j + 1])) missing.push(wanted[i++]);
     else extra.push(received[j++]);
   }
-  return { matched: rows[0][0], total: wanted.length, missing, extra, exact: !missing.length && !extra.length, truncated: tokenize(expected).length > 350 || tokenize(actual).length > 350 };
+  return { matched: rows[0][0], total: wanted.length, missing, extra, exact: !missing.length && !extra.length, truncated: wantedAll.length > cap || receivedAll.length > cap };
 }

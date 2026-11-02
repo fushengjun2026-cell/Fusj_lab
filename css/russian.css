@@ -109,6 +109,21 @@
 .dictation-controls .room-button { min-height: 36px; padding: 7px 12px; font-size: .74rem !important; }
 .dictation-controls .room-button[aria-pressed="true"] { border-color: #b99bc9; background: #eee4f1; }
 .dictation-controls p { flex: 1 1 180px; margin: 0; color: #927d91; font-size: .68rem; line-height: 1.7; overflow-wrap: anywhere; }
+.full-intro { display: flex; justify-content: space-between; align-items: end; gap: 20px; padding: 29px 0 21px; }
+.full-intro h3 { margin: 7px 0 8px; font-family: inherit; font-size: 1.12rem; font-weight: 500; }
+.full-intro p, .full-caption { margin: 0; color: #9a899c; font-size: .74rem; line-height: 1.8; }
+.full-count { flex-shrink: 0; color: #a891b1; font-size: .72rem; }
+.full-paper { padding: 27px 30px; border: 1px solid #e2d7c9; border-radius: 18px; background: #fffdf7; box-shadow: 0 14px 38px #79603f06; }
+.full-paper > label { display: block; color: #806b88; font-size: .83rem; line-height: 1.8; }
+.full-paper > label span { display: block; color: #a995a0; font-size: .7rem; }
+.full-paper textarea { display: block; width: 100%; min-height: 210px; margin-top: 12px; padding: 14px; resize: vertical; border: 1px solid #e3d9de; border-radius: 10px; background: #fbf7f1; color: var(--text); font-family: var(--russian-text); font-size: 1.05rem; line-height: 1.8; }
+.full-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 15px; margin-top: 20px; }
+.full-result { margin-top: 18px; overflow-wrap: anywhere; }
+.full-original { margin-top: 21px; padding-top: 18px; border-top: 1px solid #e9dedf; }
+.full-original p { margin: 12px 0 0; color: #675b70; font-family: var(--russian-text); font-size: 1.02rem; line-height: 1.9; overflow-wrap: anywhere; }
+.full-original p span { color: #a28aa9; font-family: inherit; }
+.full-caption { margin-top: 13px; }
+@media (max-width: 720px) { .full-intro { padding-top: 22px; } .full-paper { padding: 22px 18px; } .full-paper textarea { min-height: 190px; } }
 .recitation-result { margin: 8px 0 0; padding: 12px; border-radius: 8px; background: #f2ecf4; color: #7d638e; font-size: .78rem; line-height: 1.85; white-space: pre-line; }
 .self-rating { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-top: 16px; }
 .self-rating > span { color: #8c7189; font-size: .69rem; }
