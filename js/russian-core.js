@@ -245,3 +245,26 @@ export function comparePassage(sentences, actual, limit = 2500) {
   const truncated = expectedAll.length > cap || actualAll.length > cap;
   return { matched: rows[0][0], total: wanted.length, missing, extra, extraRanges, sentenceStatus, truncated, exact: !truncated && !missing.length && !extra.length };
 }
+
+// Copy punctuation only where the dictated words still match the supplied passage in order.
+export function punctuateDictation(reference, before, transcript, after = '') {
+  const tokens = value => Array.from(value.matchAll(/[\p{L}\p{M}\p{N}]+/gu), match => ({
+    key: speechText(match[0]).toLocaleLowerCase('ru'), start: match.index, end: match.index + match[0].length
+  }));
+  const expected = tokens(reference), prefix = tokens(before), spoken = tokens(transcript);
+  if (prefix.some((token, index) => token.key !== expected[index]?.key)) return transcript;
+  let output = '', cursor = 0;
+  for (let index = 0; index < spoken.length; index++) {
+    const token = spoken[index], refIndex = prefix.length + index, original = expected[refIndex];
+    if (!original || token.key !== original.key) break;
+    const followingReference = reference.slice(original.end, expected[refIndex + 1]?.start ?? reference.length);
+    const punctuation = followingReference.match(/[,.!?;:…]/u)?.[0];
+    const followingSpoken = transcript.slice(token.end, spoken[index + 1]?.start ?? transcript.length);
+    const followingInput = index === spoken.length - 1 ? after : '';
+    if (punctuation && !/[,.!?;:…]/u.test(followingSpoken) && !/^\s*[,.!?;:…]/u.test(followingInput)) {
+      output += transcript.slice(cursor, token.end) + punctuation;
+      cursor = token.end;
+    }
+  }
+  return output + transcript.slice(cursor);
+}

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ROOM_KEY, RoomRepository, parsePassage, validateLesson, validateState, normalizeRussian, speechText, transliterate, setProgress, progressStatus, compareRecitation, comparePassage } from '../js/russian-core.js';
+import { ROOM_KEY, RoomRepository, parsePassage, validateLesson, validateState, normalizeRussian, speechText, transliterate, setProgress, progressStatus, compareRecitation, comparePassage, punctuateDictation } from '../js/russian-core.js';
 import { STARTER_LESSONS } from '../js/russian-lessons.js';
 import { ADDED_LESSONS } from '../js/russian-new-lesson.js';
 function memory() { const values = new Map(); return { getItem: key => values.get(key) || null, setItem: (key,value) => values.set(key,value) }; }
@@ -171,4 +171,15 @@ test('Passage comparison reports unexamined sentences beyond its limit', () => {
   assert.equal(result.truncated, true);
   assert.deepEqual(result.sentenceStatus, ['matched', 'unchecked']);
   assert.equal(result.exact, false);
+});
+
+
+test('Russian dictation fills punctuation from matched words without changing the words', () => {
+  const original = 'Вчера́ я был в гостя́х. Она́ сказала: «Приве́т, Анна!»';
+  assert.equal(punctuateDictation(original, '', 'вчера я был в гостях она сказала привет анна'), 'вчера я был в гостях. она сказала: привет, анна!');
+  assert.equal(punctuateDictation(original, 'вчера я был в гостях. ', 'она сказала привет анна'), 'она сказала: привет, анна!');
+  assert.equal(punctuateDictation(original, '', 'вчера я был в гостях! она сказала привет анна'), 'вчера я был в гостях! она сказала: привет, анна!');
+  assert.equal(punctuateDictation(original, '', 'вчера я был в гостях', '.'), 'вчера я был в гостях');
+  assert.equal(punctuateDictation(original, '', 'вчера я был дома она сказала'), 'вчера я был дома она сказала');
+  assert.equal(punctuateDictation(original, 'ошибка', 'она сказала'), 'она сказала');
 });

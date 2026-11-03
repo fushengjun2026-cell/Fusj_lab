@@ -1,0 +1,22 @@
+/* Compact archive layout for the Games page. */
+main > .game-archive.content-section:nth-of-type(even) {
+  padding-block: clamp(34px, 4.5vw, 54px);
+}
+.game-archive .game-list {
+  display: grid;
+  max-width: none;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 22px;
+  margin-top: 22px;
+}
+.game-archive .game-entry { min-height: 280px; }
+.game-archive .game-entry .project-topline { margin-bottom: 30px; }
+.game-archive .game-entry .tech-stack { padding-top: 22px; }
+.game-archive .coming-divider { margin-top: 48px; }
+@media (max-width: 720px) {
+  .game-archive .game-list { grid-template-columns: 1fr; gap: 18px; }
+  .game-archive .game-entry { min-height: 250px; }
+  .game-archive .game-entry .project-topline { margin-bottom: 24px; }
+  .game-archive .game-entry-arrow { top: 56px; right: 26px; font-size: 2rem; }
+  .game-archive .coming-divider { margin-top: 40px; }
+}

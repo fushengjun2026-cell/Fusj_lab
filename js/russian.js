@@ -1,4 +1,4 @@
-import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation, comparePassage } from './russian-core.js?v=4';
+import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation, comparePassage, punctuateDictation } from './russian-core.js?v=5';
 import { STARTER_LESSONS } from './russian-lessons.js?v=1';
 import { ADDED_LESSONS } from './russian-new-lesson.js?v=1';
 import { lookupRussianWord } from './russian-dictionary.js?v=1';
@@ -281,11 +281,13 @@ function cancelDictation() {
   dictationIdle();
 }
 function updateDictationText(session, transcript) {
-  const input = $(dictationElements(session.target).input), text = transcript.trim();
-  if (!text) return true;
+  const input = $(dictationElements(session.target).input), spoken = transcript.trim();
+  if (!spoken) return true;
   const start = session.start, end = start + session.inserted.length;
   if (input.value.slice(start, end) !== session.inserted) return false;
   const before = input.value.slice(0, start), after = input.value.slice(end);
+  const reference = session.target === 'full' ? fullExpected() : currentSentence()?.text || '';
+  const text = punctuateDictation(reference, before, spoken, after);
   const left = before && !/\s$/u.test(before) && !/^[.,!?;:…]/u.test(text) ? ' ' : '';
   const right = after && !/^(?:\s|[.,!?;:…])/u.test(after) && !/\s$/u.test(text) ? ' ' : '';
   const addition = left + text + right;
