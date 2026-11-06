@@ -1,14 +1,15 @@
 import { ROOM_KEY, RoomRepository, newId, parsePassage, normalizeRussian, speechText, validateLesson, setProgress, progressStatus, compareRecitation, comparePassage, punctuateDictation } from './russian-core.js?v=5';
 import { STARTER_LESSONS } from './russian-lessons.js?v=1';
 import { ADDED_LESSONS } from './russian-new-lesson.js?v=1';
-import { lookupRussianWord } from './russian-dictionary.js?v=1';
+import { DIALOGUE_LESSONS } from './russian-dialogues.js?v=1';
+import { lookupRussianWord } from './russian-dictionary.js?v=2';
 
 const $ = id => document.getElementById(id);
 const el = (tag, className = '', text) => { const node = document.createElement(tag); node.className = className; if (text !== undefined) node.textContent = text; return node; };
 const message = (id, text = '') => { $(id).textContent = text; $(id).hidden = !text; };
 let storage = null;
 try { storage = localStorage; } catch {}
-const repo = new RoomRepository(storage, STARTER_LESSONS, ADDED_LESSONS);
+const repo = new RoomRepository(storage, STARTER_LESSONS, [...ADDED_LESSONS, ...DIALOGUE_LESSONS]);
 let mode = 'learn', hint = 2, role = 'all', sentenceId = null, showTranslation = true;
 let wordView = 'list', wordKey = null, wordRevealed = false, wordOrder = [];
 let lessonDraft = null, wordDraft = null, lessonDirty = false, wordDirty = false, rawDirty = false;
@@ -70,7 +71,7 @@ function closeLookup(returnFocus = false) {
 function showWordLookup(button, form) {
   if (selectedWordButton === button) { closeLookup(true); return; }
   closeLookup();
-  const known = lookupRussianWord(form);
+  const known = lookupRussianWord(form, lesson().id);
   const matching = lesson().vocabulary.find(word => wordKeyText(word.word) === wordKeyText(known?.lemma || form));
   const direct = lesson().vocabulary.find(word => wordKeyText(word.word) === wordKeyText(form));
   const existing = matching || direct;

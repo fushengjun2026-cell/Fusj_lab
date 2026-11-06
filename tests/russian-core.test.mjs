@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { ROOM_KEY, RoomRepository, parsePassage, validateLesson, validateState, normalizeRussian, speechText, transliterate, setProgress, progressStatus, compareRecitation, comparePassage, punctuateDictation } from '../js/russian-core.js';
 import { STARTER_LESSONS } from '../js/russian-lessons.js';
 import { ADDED_LESSONS } from '../js/russian-new-lesson.js';
+import { DIALOGUE_LESSONS } from '../js/russian-dialogues.js';
 function memory() { const values = new Map(); return { getItem: key => values.get(key) || null, setItem: (key,value) => values.set(key,value) }; }
 const makeRepo = (storage = memory()) => new RoomRepository(storage, STARTER_LESSONS);
 
@@ -182,4 +183,31 @@ test('Russian dictation fills punctuation from matched words without changing th
   assert.equal(punctuateDictation(original, '', 'вчера я был в гостях', '.'), 'вчера я был в гостях');
   assert.equal(punctuateDictation(original, '', 'вчера я был дома она сказала'), 'вчера я был дома она сказала');
   assert.equal(punctuateDictation(original, 'ошибка', 'она сказала'), 'она сказала');
+});
+
+
+test('Both textbook dialogues include the complete text, roles, translations and vocabulary', async () => {
+  const [appearance, character] = DIALOGUE_LESSONS.map(validateLesson);
+  assert.equal(appearance.sentences.length, 20); assert.equal(character.sentences.length, 19);
+  assert.deepEqual([...new Set(appearance.sentences.map(s => speechText(s.speaker)))], ['Саша', 'Антон']);
+  assert.deepEqual([...new Set(character.sentences.map(s => speechText(s.speaker)))], ['Мама', 'Анна']);
+  assert.ok(character.sentences.some(s => speechText(s.text) === 'Да, но я считаю, что вы очень разные по характеру.'));
+  assert.equal(speechText(character.sentences.at(-1).text), 'Нет, с ней вместе и я стала общительнее.');
+  assert.ok([...appearance.sentences, ...character.sentences].every(s => s.translation && s.keywords.length));
+  const { lookupRussianWord } = await import('../js/russian-dictionary.js');
+  for (const item of [appearance, character]) for (const sentence of item.sentences) for (const word of sentence.text.match(/\p{Script=Cyrillic}[\p{Script=Cyrillic}\p{M}]*/gu) || []) assert.ok(lookupRussianWord(word, item.id), word);
+  assert.equal(lookupRussianWord('ли', 'dialogue-appearance').part, '语气词');
+  assert.equal(lookupRussianWord('ли', 'classroom-introduction').part, '专有名词');
+});
+
+test('New dialogues arrive in an existing library without overwriting edits, progress or deletions', () => {
+  const storage = memory(), old = new RoomRepository(storage, STARTER_LESSONS, ADDED_LESSONS);
+  const first = old.state.lessons[0];
+  old.update(state => { state.lessons[0].title = '已编辑'; setProgress(state, first.id, 'sentences', first.sentences[0].id, 'mastered'); });
+  const updated = new RoomRepository(storage, STARTER_LESSONS, [...ADDED_LESSONS, ...DIALOGUE_LESSONS]);
+  assert.equal(updated.state.lessons.length, 4); assert.equal(updated.state.lessons[0].title, '已编辑');
+  assert.equal(progressStatus(updated.state, first.id, 'sentences', first.sentences[0].id), 'mastered');
+  updated.update(state => { state.lessons = state.lessons.filter(item => item.id !== DIALOGUE_LESSONS[0].id); });
+  const restored = new RoomRepository(storage, STARTER_LESSONS, [...ADDED_LESSONS, ...DIALOGUE_LESSONS]);
+  assert.equal(restored.state.lessons.length, 3); assert.equal(restored.state.lessons.some(item => item.id === DIALOGUE_LESSONS[0].id), false);
 });
