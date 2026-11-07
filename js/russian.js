@@ -66,13 +66,16 @@ function renderHeading() {
   $('role-filter').value = role;
 }
 const wordKeyText = value => speechText(value).toLocaleLowerCase('ru').trim();
+const lookupSpeechSource = () => selectedWord ? `lookup:${lesson().id}:${selectedWord.sentence.id}:${wordKeyText(selectedWord.form)}` : '';
 function closeLookup(returnFocus = false) {
+  if (speechPlayer.state.source.startsWith('lookup:')) stopSpeech();
   $('word-lookup').hidden = true;
   if (selectedWordButton) {
     selectedWordButton.setAttribute('aria-pressed', 'false');
     if (returnFocus) selectedWordButton.focus();
   }
   selectedWord = null; selectedWordButton = null;
+  updateSpeechButtons();
 }
 function showWordLookup(button, form) {
   if (selectedWordButton === button) { closeLookup(true); return; }
@@ -88,6 +91,7 @@ function showWordLookup(button, form) {
   $('lookup-meaning').textContent = known?.meaning || existing?.meaning || '这个词暂时没有释义，可以加入词汇表时自己补充。';
   $('lookup-add').textContent = existing ? '已在词汇表 · 查看词条 ↗' : '加入词汇表 ＋';
   $('word-lookup').hidden = false;
+  updateSpeechButtons();
 }
 function renderSentenceWords(text) {
   const container = $('sentence-text'); container.replaceChildren();
@@ -392,6 +396,9 @@ function updateSpeechButtons() {
   $('listen-word').disabled = !available(`word:${word?.key}`) || !word;
   $('restart-word').disabled = !available(`word:${word?.key}`) || !word;
   $('listen-word').textContent = speechLabel(`word:${word?.key}`, '听这个词 ▷');
+  const lookupSource = lookupSpeechSource();
+  $('lookup-listen').disabled = !selectedWord || !available(lookupSource);
+  $('lookup-listen').textContent = speechLabel(lookupSource, '读音 ▷');
   document.querySelectorAll('[data-speech]').forEach(button => {
     button.disabled = !available(`word:${button.dataset.speechKey}`);
     if (button.dataset.speech === 'word') button.textContent = speechLabel(`word:${button.dataset.speechKey}`, '朗读 ▷');
@@ -568,6 +575,7 @@ $('delete-lesson').addEventListener('click', () => {
   catch (error) { message('lesson-error',error.message); }
 });
 $('close-lookup').addEventListener('click', () => closeLookup(true));
+$('lookup-listen').addEventListener('click', () => { if (selectedWord) toggleSpeech(selectedWord.form, lookupSpeechSource()); });
 $('lookup-add').addEventListener('click', () => {
   if (!selectedWord) return;
   const picked = selectedWord;

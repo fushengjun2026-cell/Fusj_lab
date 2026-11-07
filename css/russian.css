@@ -83,6 +83,7 @@
 .word-lookup-heading .room-close { width: 28px; height: 28px; font-size: 1.15rem !important; }
 .word-lookup-lemma { margin: 5px 0 0; color: #9a829f; font-size: .72rem; line-height: 1.7; }
 .word-lookup-meaning { margin: 8px 0 13px; color: #6f6171; font-size: .86rem; line-height: 1.8; }
+.word-lookup-actions { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; }
 .word-lookup .room-button { min-height: 35px; padding: 6px 12px; font-size: .73rem !important; }
 .hidden-original { display: grid; gap: 15px; min-height: 100px; padding: 25px 0; }
 .hidden-original span { color: #8f7a9b; font-size: .91rem; }

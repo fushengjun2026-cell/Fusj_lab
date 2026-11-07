@@ -11,7 +11,7 @@
   <link rel="icon" type="image/svg+xml" href="logo.svg">
   <link rel="preload" href="assets/fonts/pt-serif-regular.woff" as="font" type="font/woff" crossorigin>
   <link rel="stylesheet" href="css/site.css?v=7">
-  <link rel="stylesheet" href="css/russian.css?v=6">
+  <link rel="stylesheet" href="css/russian.css?v=7">
 </head>
 <body data-page="projects" class="russian-room">
   <header class="site-header">
@@ -52,7 +52,7 @@
               <div class="word-lookup-heading"><strong id="lookup-word" lang="ru"></strong><button id="close-lookup" class="room-close" type="button" aria-label="关闭单词释义">×</button></div>
               <p id="lookup-lemma" class="word-lookup-lemma"></p>
               <p id="lookup-meaning" class="word-lookup-meaning"></p>
-              <button id="lookup-add" class="room-button" type="button">加入词汇表 ＋</button>
+              <div class="word-lookup-actions"><button id="lookup-listen" class="room-button" type="button" disabled>读音 ▷</button><button id="lookup-add" class="room-button" type="button">加入词汇表 ＋</button></div>
             </div>
             <div id="hidden-original" class="hidden-original" hidden><span>先别看答案，试着说出来。</span><i></i><i></i></div>
             <div class="meaning-block"><div class="hint-label"><span>中文释义</span><button id="toggle-translation" type="button" class="room-link">隐藏释义</button></div><p id="sentence-translation"></p></div>
@@ -113,6 +113,6 @@
     <form id="word-form"><label>收录到课文<select id="edit-word-lesson"></select></label><div class="form-pair"><label>俄语单词或短语<input id="edit-word" lang="ru" maxlength="120" required placeholder="例如：студент"></label><label>重音／读音提示<input id="edit-word-reading" lang="ru" maxlength="200" placeholder="例如：студе́нт"></label></div><label>中文词义<input id="edit-word-meaning" maxlength="400" required placeholder="例如：男大学生"></label><label>俄语例句<textarea id="edit-word-example" lang="ru" maxlength="2000" rows="3"></textarea></label><label>例句中文<textarea id="edit-word-translation" maxlength="2000" rows="2"></textarea></label><p id="word-error" class="form-error" role="alert" hidden></p><div class="dialog-actions"><button id="delete-word" type="button" class="room-link danger-link" hidden>删除词条</button><button type="submit" class="room-button room-button-primary">保存词条 ↗</button></div></form>
   </dialog>
   <script src="js/site.js?v=3"></script>
-  <script type="module" src="js/russian.js?v=15"></script>
+  <script type="module" src="js/russian.js?v=16"></script>
 </body>
 </html>
