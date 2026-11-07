@@ -3,6 +3,7 @@ import { STARTER_LESSONS } from './russian-lessons.js?v=1';
 import { ADDED_LESSONS } from './russian-new-lesson.js?v=1';
 import { DIALOGUE_LESSONS } from './russian-dialogues.js?v=1';
 import { lookupRussianWord } from './russian-dictionary.js?v=2';
+import { RussianSpeechPlayer } from './russian-speech-player.js?v=1';
 
 const $ = id => document.getElementById(id);
 const el = (tag, className = '', text) => { const node = document.createElement(tag); node.className = className; if (text !== undefined) node.textContent = text; return node; };
@@ -13,8 +14,12 @@ const repo = new RoomRepository(storage, STARTER_LESSONS, [...ADDED_LESSONS, ...
 let mode = 'learn', hint = 2, role = 'all', sentenceId = null, showTranslation = true;
 let wordView = 'list', wordKey = null, wordRevealed = false, wordOrder = [];
 let lessonDraft = null, wordDraft = null, lessonDirty = false, wordDirty = false, rawDirty = false;
-let voices = [], utterance = null, speechEpoch = 0, speechSource = '', speechPaused = false, speechStarted = false;
-let speechPauseTimer = null, speechBoundary = 0, pausedReplay = null;
+let voices = [];
+const speechPlayer = new RussianSpeechPlayer({
+  synthesis: window.speechSynthesis,
+  createUtterance: text => new SpeechSynthesisUtterance(text),
+  onChange: () => { renderSpeechStatus(); updateSpeechButtons(); }
+});
 let dictation = null, dictationEpoch = 0, dictationTarget = 'sentence';
 const fullDrafts = new Map();
 let fullVisibleLessonId = null, fullProgressTimer = null;
@@ -369,85 +374,50 @@ function toggleDictation(target = 'sentence') {
   catch { dictation = null; dictationEpoch++; dictationIdle('无法启动语音识别，请重试或使用手机键盘的俄语听写。'); }
 }
 
-function stopSpeech() {
-  speechEpoch++; clearTimeout(speechPauseTimer); speechPauseTimer = null;
-  if ('speechSynthesis' in window) speechSynthesis.cancel();
-  utterance = null; speechSource = ''; speechPaused = false; speechStarted = false; speechBoundary = 0; pausedReplay = null;
-  $('voice-status').textContent = voices.length ? '俄语朗读已就绪 · 重音以课堂标注为准。' : '当前设备未提供俄语语音，朗读暂不可用；仍可看重音和转写练习。';
-  updateSpeechButtons();
-}
+function stopSpeech() { speechPlayer.stop(); }
 function speechLabel(source, idle) {
-  return (utterance || pausedReplay) && speechSource === source ? (speechPaused ? '继续朗读 ▷' : '暂停朗读 Ⅱ') : idle;
+  const state = speechPlayer.state;
+  if (state.source !== source) return idle;
+  if (state.phase === 'paused') return '继续朗读 ▷';
+  if (['loading', 'playing'].includes(state.phase)) return '暂停朗读 Ⅱ';
+  return idle;
 }
 function updateSpeechButtons() {
-  const available = voices.length > 0, word = activeWord();
-  $('listen-sentence').disabled = !available || !currentSentence();
-  $('restart-sentence').disabled = !available || !currentSentence();
+  const word = activeWord(), state = speechPlayer.state;
+  const available = source => voices.length > 0 || (state.source === source && !!speechPlayer.voice);
+  $('listen-sentence').disabled = !available('sentence') || !currentSentence();
+  $('restart-sentence').disabled = !available('sentence') || !currentSentence();
   $('listen-sentence').textContent = speechLabel('sentence', '朗读这一句 ▷');
-  $('listen-word').disabled = !available || !word;
-  $('restart-word').disabled = !available || !word;
+  $('listen-sentence').dataset.playbackState = state.source === 'sentence' ? state.phase : 'idle';
+  $('listen-word').disabled = !available(`word:${word?.key}`) || !word;
+  $('restart-word').disabled = !available(`word:${word?.key}`) || !word;
   $('listen-word').textContent = speechLabel(`word:${word?.key}`, '听这个词 ▷');
   document.querySelectorAll('[data-speech]').forEach(button => {
-    button.disabled = !available;
+    button.disabled = !available(`word:${button.dataset.speechKey}`);
     if (button.dataset.speech === 'word') button.textContent = speechLabel(`word:${button.dataset.speechKey}`, '朗读 ▷');
   });
 }
+function renderSpeechStatus() {
+  const state = speechPlayer.state;
+  const status = {
+    loading: '正在准备朗读，可以点击暂停。',
+    playing: '正在朗读，再点一次可暂停。',
+    paused: '已暂停，点击继续朗读。',
+    ended: '本次朗读结束，可再次播放或重读。'
+  };
+  $('voice-status').textContent = state.phase === 'error' ? state.error : status[state.phase] || (voices.length ? '俄语朗读已就绪。' : '当前设备未提供俄语语音，朗读暂不可用。');
+}
 function loadVoices() {
   voices = 'speechSynthesis' in window ? speechSynthesis.getVoices().filter(voice => /^ru(?:[-_]|$)/i.test(voice.lang)).sort((a,b) => Number(b.localService) - Number(a.localService)) : [];
-  $('voice-status').textContent = (utterance || pausedReplay) ? (speechPaused ? '朗读已暂停。' : '正在朗读……') : voices.length ? '俄语朗读已就绪 · 重音以课堂标注为准。' : '当前设备未提供俄语语音，朗读暂不可用；仍可看重音和转写练习。';
-  updateSpeechButtons();
+  renderSpeechStatus(); updateSpeechButtons();
 }
-function speak(text, source) {
-  if (!voices.length) { loadVoices(); if (!voices.length) return; }
-  stopSpeech(); const epoch = speechEpoch;
-  if (speechSynthesis.paused) speechSynthesis.resume();
-  utterance = new SpeechSynthesisUtterance(speechText(text)); utterance.lang = voices[0].lang; utterance.voice = voices[0]; utterance.rate = Number($('speech-rate').value);
-  speechSource = source; speechPaused = false; speechStarted = false; speechBoundary = 0; pausedReplay = null;
-  $('voice-status').textContent = '正在朗读……'; updateSpeechButtons();
-  const activeUtterance = utterance;
-  utterance.onstart = () => { if (epoch === speechEpoch && utterance === activeUtterance) { speechStarted = true; if (speechPaused) { try { pauseStartedSpeech(activeUtterance, epoch); } catch { holdPausedSpeech(activeUtterance, epoch); } } } };
-  utterance.onboundary = event => { if (epoch === speechEpoch && utterance === activeUtterance && Number.isInteger(event.charIndex)) speechBoundary = Math.max(0, Math.min(event.charIndex, activeUtterance.text.length)); };
-  utterance.onend = () => { if (epoch === speechEpoch) { if (speechPaused) { holdPausedSpeech(activeUtterance, epoch); return; } utterance = null; speechSource = ''; speechStarted = false; loadVoices(); } };
-  utterance.onerror = event => { if (epoch === speechEpoch) { if (speechPaused && ['canceled','interrupted'].includes(event.error)) { holdPausedSpeech(activeUtterance, epoch); return; } utterance = null; speechSource = ''; speechPaused = false; speechStarted = false; updateSpeechButtons(); if (!['canceled','interrupted'].includes(event.error)) $('voice-status').textContent = '这次朗读未能完成，请重试或检查设备的俄语语音。'; } };
-  speechSynthesis.speak(utterance);
+function speechOptions(text, source) {
+  if (!voices.length) loadVoices();
+  const voice = voices[0] || (speechPlayer.state.source === source ? speechPlayer.voice : null);
+  return voice ? { text: speechText(text), source, voice, rate: Number($('speech-rate').value) } : null;
 }
-function holdPausedSpeech(active, epoch) {
-  if (epoch !== speechEpoch || !speechPaused || utterance !== active) return;
-  pausedReplay = { text: active.text, offset: speechBoundary };
-  speechEpoch++; clearTimeout(speechPauseTimer); speechPauseTimer = null;
-  speechSynthesis.cancel(); utterance = null; speechStarted = false;
-  $('voice-status').textContent = speechBoundary ? '朗读已暂停，继续时从最近的单词开始。' : '朗读已暂停，此设备继续时会从头开始。';
-  updateSpeechButtons();
-}
-function pauseStartedSpeech(active, epoch) {
-  clearTimeout(speechPauseTimer); speechPauseTimer = null;
-  let confirmed = false;
-  active.onpause = () => { if (epoch === speechEpoch && utterance === active && speechPaused) { confirmed = true; clearTimeout(speechPauseTimer); speechPauseTimer = null; } };
-  speechSynthesis.pause();
-  if (!confirmed) speechPauseTimer = setTimeout(() => { if (!confirmed) holdPausedSpeech(active, epoch); }, 450);
-}
-function toggleSpeech(text, source) {
-  if (pausedReplay && speechSource === source) {
-    const replay = pausedReplay;
-    speak(replay.text.slice(replay.offset), source);
-    return;
-  }
-  if (!utterance || speechSource !== source) { speak(text, source); return; }
-  if (typeof speechSynthesis.pause !== 'function' || typeof speechSynthesis.resume !== 'function') { $('voice-status').textContent = '当前浏览器不支持暂停朗读，可以使用重读。'; return; }
-  const wasPaused = speechPaused;
-  try {
-    if (speechPaused) {
-      clearTimeout(speechPauseTimer); speechPauseTimer = null;
-      if (speechStarted) speechSynthesis.resume();
-      speechPaused = false; $('voice-status').textContent = '正在朗读……';
-    } else {
-      speechPaused = true; $('voice-status').textContent = '朗读已暂停。';
-      if (speechStarted) pauseStartedSpeech(utterance, speechEpoch);
-      else { const active = utterance, epoch = speechEpoch; speechPauseTimer = setTimeout(() => holdPausedSpeech(active, epoch), 450); }
-    }
-    updateSpeechButtons();
-  } catch { speechPaused = wasPaused; updateSpeechButtons(); $('voice-status').textContent = '暂停或继续失败，请使用重读。'; }
-}
+function speak(text, source) { const options = speechOptions(text, source); if (options) speechPlayer.play(options); }
+function toggleSpeech(text, source) { const options = speechOptions(text, source); if (options) speechPlayer.toggle(options); }
 
 function filteredWords() {
   const scope = $('word-scope').value, filter = $('word-filter').value, query = speechText($('word-search').value).toLocaleLowerCase('ru').trim();
@@ -473,7 +443,7 @@ function renderVocabulary() {
     const title = el('h4','',item.word.pronunciation || item.word.word); title.lang = 'ru';
     left.append(title);
     const listen = el('button','room-link','朗读 ▷'); listen.type = 'button'; listen.dataset.speech = 'word'; listen.dataset.speechKey = item.key; listen.addEventListener('click', () => toggleSpeech(item.word.pronunciation || item.word.word, `word:${item.key}`));
-    const restart = el('button','room-link','重读 ↻'); restart.type = 'button'; restart.dataset.speech = 'restart'; restart.setAttribute('aria-label', `重读词汇 ${item.word.word}`); restart.addEventListener('click', () => speak(item.word.pronunciation || item.word.word, `word:${item.key}`));
+    const restart = el('button','room-link','重读 ↻'); restart.type = 'button'; restart.dataset.speech = 'restart'; restart.dataset.speechKey = item.key; restart.setAttribute('aria-label', `重读词汇 ${item.word.word}`); restart.addEventListener('click', () => speak(item.word.pronunciation || item.word.word, `word:${item.key}`));
     const edit = el('button','room-link','编辑'); edit.type = 'button'; edit.setAttribute('aria-label', `编辑词汇 ${item.word.word}`); edit.addEventListener('click', () => openWord(item)); actions.append(listen,restart,edit); top.append(left,actions);
     card.append(top,el('p','word-meaning',item.word.meaning));
     if (item.word.example || item.word.exampleTranslation) { const example = el('div','word-example'); const ru = el('p','',item.word.example); ru.lang = 'ru'; example.append(ru,el('p','',item.word.exampleTranslation)); card.append(example); }
@@ -501,7 +471,7 @@ function rateWord(status) {
   guarded(() => {
     const current = activeWord(); if (!current || !wordRevealed) return;
     const queue = orderedWords(), index = queue.findIndex(item => item.key === current.key), next = queue[(index + 1) % queue.length]?.key;
-    save(state => setProgress(state, current.lesson.id, 'words', current.word.id, status));
+    stopSpeech(); save(state => setProgress(state, current.lesson.id, 'words', current.word.id, status));
     wordKey = next; wordRevealed = false; renderVocabulary();
   });
 }
@@ -535,7 +505,7 @@ function renderSentenceEditors() {
   }));
 }
 function openLesson(existing = null) {
-  cancelDictation();
+  stopSpeech(); cancelDictation();
   lessonDraft = existing ? structuredClone(existing) : { id: newId(), title: '', subtitle: '', sentences: [], vocabulary: [] };
   $('lesson-editor-title').textContent = existing ? '编辑课文与提示' : '导入新课文';
   $('edit-lesson-title').value = lessonDraft.title; $('edit-lesson-subtitle').value = lessonDraft.subtitle;
@@ -552,7 +522,7 @@ function splitPassage() {
   $('parse-message').textContent = `已整理 ${result.sentences.length} 句。${result.warnings.length ? '\n' + result.warnings.join('\n') : '请核对分句、中文释义和重音，再保存。'}`;
 }
 function openWord(existing = null, fromSentence = null, lookup = null) {
-  cancelDictation();
+  stopSpeech(); cancelDictation();
   const selected = window.getSelection()?.toString().trim() || '';
   const selectionInSentence = $('sentence-text').contains(window.getSelection()?.anchorNode);
   const picked = fromSentence && selectionInSentence && /[\u0400-\u04ff]/.test(selected) && selected.length <= 120 ? selected : '';
@@ -669,15 +639,15 @@ for (const tab of roomTabs) {
   $(`tab-${tab}`).addEventListener('click', () => setTab(tab));
   $(`tab-${tab}`).addEventListener('keydown', event => { if (['ArrowLeft','ArrowRight'].includes(event.key)) { event.preventDefault(); const delta = event.key === 'ArrowRight' ? 1 : -1; setTab(roomTabs[(roomTabs.indexOf(tab) + delta + roomTabs.length) % roomTabs.length], true); } });
 }
-for (const id of ['word-search','word-scope','word-filter','word-direction']) $(id).addEventListener(id === 'word-search' ? 'input' : 'change', () => { wordKey = null; wordOrder = []; wordRevealed = false; renderVocabulary(); });
-$('word-list-mode').addEventListener('click', () => { wordView = 'list'; renderVocabulary(); });
-$('word-card-mode').addEventListener('click', () => { wordView = 'cards'; wordRevealed = false; renderVocabulary(); });
+for (const id of ['word-search','word-scope','word-filter','word-direction']) $(id).addEventListener(id === 'word-search' ? 'input' : 'change', () => { stopSpeech(); wordKey = null; wordOrder = []; wordRevealed = false; renderVocabulary(); });
+$('word-list-mode').addEventListener('click', () => { stopSpeech(); wordView = 'list'; renderVocabulary(); });
+$('word-card-mode').addEventListener('click', () => { stopSpeech(); wordView = 'cards'; wordRevealed = false; renderVocabulary(); });
 $('flip-word').addEventListener('click', () => { wordRevealed = !wordRevealed; renderVocabulary(); });
 $('next-word').addEventListener('click', nextWord);
 $('word-review').addEventListener('click', () => rateWord('review')); $('word-known').addEventListener('click', () => rateWord('mastered'));
 $('listen-word').addEventListener('click', () => { const current = activeWord(); if (current) toggleSpeech(current.word.pronunciation || current.word.word, `word:${current.key}`); });
 $('restart-word').addEventListener('click', () => { const current = activeWord(); if (current) speak(current.word.pronunciation || current.word.word, `word:${current.key}`); });
-$('shuffle-words').addEventListener('click', () => { const keys = filteredWords().map(item => item.key); for (let i = keys.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [keys[i],keys[j]] = [keys[j],keys[i]]; } wordOrder = keys; wordKey = keys[0]; wordRevealed = false; renderVocabulary(); });
+$('shuffle-words').addEventListener('click', () => { stopSpeech(); const keys = filteredWords().map(item => item.key); for (let i = keys.length - 1; i > 0; i--) { const j = Math.floor(Math.random() * (i + 1)); [keys[i],keys[j]] = [keys[j],keys[i]]; } wordOrder = keys; wordKey = keys[0]; wordRevealed = false; renderVocabulary(); });
 window.addEventListener('keydown', event => {
   if (event.defaultPrevented || event.ctrlKey || event.metaKey || event.altKey || document.querySelector('dialog[open]') || event.target.closest('input,textarea,select,[contenteditable="true"]') || $('reading-panel').hidden) return;
   if (event.key === 'ArrowLeft') { event.preventDefault(); moveSentence(-1); }
